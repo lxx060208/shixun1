@@ -3,6 +3,7 @@ import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { resetPasswordApi } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -78,10 +79,22 @@ const forgotRules = {
 }
 
 async function handleForgot() {
-  await forgotFormRef.value.validate((valid) => {
+  await forgotFormRef.value.validate(async (valid) => {
     if (!valid) return
-    ElMessage.success('密码重置申请已提交，请留意短信通知')
-    forgotVisible.value = false
+    try {
+      await resetPasswordApi({
+        username: forgotForm.username,
+        phone: forgotForm.phone,
+        newPassword: forgotForm.newPassword,
+      })
+      ElMessage.success('密码已重置，请使用新密码登录')
+      forgotVisible.value = false
+      forgotForm.username = ''
+      forgotForm.phone = ''
+      forgotForm.newPassword = ''
+    } catch (err) {
+      ElMessage.error(err.message || '重置失败')
+    }
   })
 }
 </script>
@@ -162,55 +175,59 @@ async function handleForgot() {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 16px;
   background:
-    radial-gradient(circle at 20% 20%, rgba(47, 158, 68, 0.25), transparent 45%),
-    radial-gradient(circle at 80% 80%, rgba(34, 139, 87, 0.28), transparent 45%),
-    linear-gradient(135deg, #eaf5ed 0%, #d9efdd 50%, #c6e6d0 100%);
+    radial-gradient(circle at 15% 10%, rgba(22, 163, 74, 0.14), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(16, 185, 129, 0.14), transparent 40%),
+    linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f5f7fa 100%);
 }
 
 .login-card {
   width: 420px;
   padding: 36px 40px 28px;
   background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(31, 58, 45, 0.16);
+  border: 1px solid rgba(22, 163, 74, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
 }
 
 .login-brand {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 24px;
+  margin-bottom: 26px;
 }
 
 .brand-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: linear-gradient(135deg, #2f9e44, #1f6f36);
+  background: linear-gradient(135deg, #16a34a, #0f7b38);
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.3);
 }
 
 .brand-title {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
-  color: #1f3a2d;
+  color: var(--samp-text-main);
 }
 
 .brand-sub {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #86998f;
+  color: var(--samp-text-secondary);
 }
 
 .login-title {
   margin: 0 0 20px;
   font-size: 18px;
-  color: #303133;
+  font-weight: 600;
+  color: var(--samp-text-main);
 }
 
 .captcha-row {
@@ -228,9 +245,9 @@ async function handleForgot() {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 4px;
-  color: #2f9e44;
-  background: #e6f4e9;
-  border-radius: 6px;
+  color: #16a34a;
+  background: #e6f5ec;
+  border-radius: 8px;
   cursor: pointer;
   user-select: none;
 }
@@ -252,6 +269,6 @@ async function handleForgot() {
   margin: 16px 0 0;
   text-align: center;
   font-size: 12px;
-  color: #a0aca5;
+  color: var(--samp-text-secondary);
 }
 </style>

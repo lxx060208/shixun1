@@ -3,7 +3,7 @@ import { ref, reactive, onMounted, nextTick, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getPermissionTreeApi, getRolePermissionApi, saveRolePermissionApi } from '@/api'
-import { roles } from '@/api/mock'
+import { roles } from '@/api/db'
 
 const route = useRoute()
 

@@ -1,6 +1,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
-import { departments, roles } from '@/api/mock'
+import { departments } from '@/api/mock'
+import { roles } from '@/api/db'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

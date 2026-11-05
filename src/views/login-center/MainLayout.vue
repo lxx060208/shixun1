@@ -11,7 +11,7 @@ const auth = useAuthStore()
 const collapsed = ref(false)
 
 const menus = [
-  { path: '/dashboard', title: '工作台', icon: 'House' },
+  { path: '/dashboard', title: '工作台', icon: 'HomeFilled' },
   {
     title: '个人中心',
     icon: 'User',
@@ -30,6 +30,18 @@ const menus = [
       { path: '/system/permission', title: '角色权限配置', icon: 'Lock' },
       { path: '/system/logs', title: '日志审计', icon: 'Document' },
       { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding' },
+    ],
+  },
+  {
+    title: '物联网环境监测',
+    icon: 'Odometer',
+    children: [
+      { path: '/iot-monitor/overview', title: '环境监测总览', icon: 'DataAnalysis' },
+      { path: '/iot-monitor/weather', title: '气象监测', icon: 'MostlyCloudy' },
+      { path: '/iot-monitor/soil', title: '土壤墒情监测', icon: 'Crop' },
+      { path: '/iot-monitor/water', title: '水质监测', icon: 'Pouring' },
+      { path: '/iot-monitor/video', title: '视频监控', icon: 'VideoCamera' },
+      { path: '/iot-monitor/collection', title: '采集管理', icon: 'SetUp' },
     ],
   },
 ]
@@ -72,18 +84,25 @@ async function handleLogout() {
   <div class="layout">
     <aside class="sidebar" :class="{ collapsed }">
       <div class="logo">
-        <el-icon :size="24"><Crop /></el-icon>
-        <span v-show="!collapsed" class="logo-text">智慧农业管理平台</span>
+        <div class="logo-badge">
+          <el-icon :size="20"><Crop /></el-icon>
+        </div>
+        <div v-show="!collapsed" class="logo-text">
+          <span class="logo-title">智慧农业管理平台</span>
+          <span class="logo-sub">Smart Agriculture</span>
+        </div>
       </div>
+
       <el-scrollbar class="menu-scroll">
         <el-menu
           :default-active="activeMenu"
           :collapse="collapsed"
+          :collapse-transition="false"
           router
           unique-opened
           background-color="transparent"
-          text-color="#c9d8ce"
-          active-text-color="#ffffff"
+          text-color="var(--samp-sidebar-text)"
+          active-text-color="var(--samp-sidebar-active-text)"
         >
           <template v-for="menu in menus" :key="menu.title">
             <el-sub-menu v-if="menu.children" :index="menu.title">
@@ -103,27 +122,49 @@ async function handleLogout() {
           </template>
         </el-menu>
       </el-scrollbar>
+
+      <div v-show="!collapsed" class="sidebar-foot">
+        <div class="foot-tip">
+          <el-icon><Sunny /></el-icon>
+          <span>智慧农业 · 绿色生产</span>
+        </div>
+      </div>
     </aside>
 
     <div class="main">
       <header class="topbar">
         <div class="topbar-left">
-          <el-icon class="collapse-btn" :size="20" @click="collapsed = !collapsed">
+          <el-icon class="collapse-btn" :size="18" @click="collapsed = !collapsed">
             <Expand v-if="collapsed" />
             <Fold v-else />
           </el-icon>
-          <span class="page-title">{{ pageTitle }}</span>
+          <div class="page-heading">
+            <el-breadcrumb separator="/">
+              <el-breadcrumb-item>首页</el-breadcrumb-item>
+              <el-breadcrumb-item>{{ pageTitle }}</el-breadcrumb-item>
+            </el-breadcrumb>
+            <span class="page-title-top">{{ pageTitle }}</span>
+          </div>
         </div>
+
         <div class="topbar-right">
-          <el-badge :value="3" class="bell">
-            <el-icon :size="20"><Bell /></el-icon>
-          </el-badge>
+          <el-tooltip content="消息通知" placement="bottom">
+            <el-badge :value="3" class="bell">
+              <el-icon :size="18"><Bell /></el-icon>
+            </el-badge>
+          </el-tooltip>
+
           <el-dropdown trigger="click" @command="handleCommand">
             <div class="user-trigger">
-              <el-avatar :size="32" class="avatar">{{ auth.userInfo?.name?.charAt(0) }}</el-avatar>
-              <span class="user-name">{{ auth.userInfo?.name }}</span>
-              <el-tag size="small" type="success" effect="plain">{{ roleName }}</el-tag>
-              <el-icon><ArrowDown /></el-icon>
+              <el-avatar :size="34" class="avatar">
+                <img v-if="auth.userInfo?.avatar" :src="auth.userInfo.avatar" alt="用户头像" />
+                <span v-else>{{ auth.userInfo?.name?.charAt(0) }}</span>
+              </el-avatar>
+              <div class="user-meta">
+                <span class="user-name">{{ auth.userInfo?.name }}</span>
+                <span class="user-role">{{ roleName }}</span>
+              </div>
+              <el-icon class="arrow"><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
@@ -148,14 +189,18 @@ async function handleLogout() {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  background: var(--samp-bg);
 }
 
+/* ---------------- 侧边栏 ---------------- */
 .sidebar {
-  width: 220px;
+  width: 232px;
   background: var(--samp-sidebar-bg);
+  border-right: 1px solid var(--samp-border);
   transition: width 0.2s;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .sidebar.collapsed {
@@ -163,34 +208,96 @@ async function handleLogout() {
 }
 
 .logo {
-  height: 60px;
+  height: 64px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #fff;
-  font-weight: 700;
+  gap: 10px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--samp-border);
   white-space: nowrap;
   overflow: hidden;
 }
 
+.logo-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(135deg, #16a34a, #0f7b38);
+  box-shadow: 0 6px 14px rgba(22, 163, 74, 0.28);
+  flex-shrink: 0;
+}
+
 .logo-text {
-  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.logo-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--samp-text-main);
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--samp-text-secondary);
+  letter-spacing: 0.4px;
 }
 
 .menu-scroll {
   flex: 1;
   overflow-y: auto;
+  padding: 10px 8px;
 }
 
 .sidebar :deep(.el-menu) {
   border-right: none;
 }
 
-.sidebar :deep(.el-menu-item.is-active) {
-  background: var(--samp-sidebar-active) !important;
+.sidebar :deep(.el-menu-item),
+.sidebar :deep(.el-sub-menu__title) {
+  height: 44px;
+  line-height: 44px;
+  margin: 4px 0;
+  border-radius: 10px;
 }
 
+.sidebar :deep(.el-menu-item:hover),
+.sidebar :deep(.el-sub-menu__title:hover) {
+  background-color: #f3f5f8;
+}
+
+.sidebar :deep(.el-menu-item.is-active) {
+  background: var(--samp-sidebar-active-bg) !important;
+  font-weight: 600;
+}
+
+.sidebar-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--samp-border);
+}
+
+.foot-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--samp-text-secondary);
+  background: #f7f9fb;
+}
+
+.foot-tip .el-icon {
+  color: var(--el-color-primary);
+}
+
+/* ---------------- 主区域 ---------------- */
 .main {
   flex: 1;
   display: flex;
@@ -199,13 +306,14 @@ async function handleLogout() {
 }
 
 .topbar {
-  height: 60px;
+  height: 64px;
   background: #fff;
-  border-bottom: 1px solid #e6ebe8;
+  border-bottom: 1px solid var(--samp-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
+  flex-shrink: 0;
 }
 
 .topbar-left {
@@ -216,45 +324,101 @@ async function handleLogout() {
 
 .collapse-btn {
   cursor: pointer;
-  color: #5f6b63;
+  color: #5c6470;
+  padding: 6px;
+  border-radius: 8px;
 }
 
-.page-title {
+.collapse-btn:hover {
+  background: #f3f5f8;
+}
+
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.page-heading :deep(.el-breadcrumb) {
+  font-size: 12px;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+
+.page-heading :deep(.el-breadcrumb__inner) {
+  color: #9aa1ad;
+  font-weight: 400;
+}
+
+.page-title-top {
   font-size: 16px;
-  font-weight: 600;
-  color: #1f2d3d;
+  font-weight: 700;
+  color: var(--samp-text-main);
 }
 
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 18px;
 }
 
 .bell {
   cursor: pointer;
-  color: #5f6b63;
+  color: #5c6470;
 }
 
 .user-trigger {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+
+.user-trigger:hover {
+  background: #f7f9fb;
 }
 
 .avatar {
-  background: var(--el-color-primary);
+  background: linear-gradient(135deg, #34d399, #16a34a);
+  color: #fff;
+  font-weight: 600;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
 .user-name {
   font-size: 14px;
-  color: #303133;
+  font-weight: 600;
+  color: var(--samp-text-main);
+}
+
+.user-role {
+  font-size: 11px;
+  color: var(--samp-text-secondary);
+}
+
+.arrow {
+  color: #9aa1ad;
+  font-size: 12px;
 }
 
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px;
 }
 </style>
