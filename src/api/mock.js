@@ -498,3 +498,285 @@ export const farmOrders = [
   { id: 'FM-1105-04', task: '生菜定植', plot: '清水基地 Q-01 叶菜区', owner: '刘星鑫', progress: 0, status: '未开始' },
   { id: 'FM-1104-08', task: '果园病虫害巡查', plot: '花溪生态果园', owner: '陈农艺', progress: 100, status: '已完成' },
 ]
+
+/* ==================== 远程智能控制与水肥模块 ==================== */
+// 可控设备命名与 GIS/告警模块一致：1-6 号大棚、B-01/Q-04/H-04 水质点、3 号大棚水泵离线
+// status: running 运行 / stopped 停止 / offline 离线
+
+// ---- 设备手动控制台 ----
+export const controlDeviceGroups = [
+  {
+    park: '南山智慧农业示范园',
+    devices: [
+      { id: 'D-NS-101', name: '1 号大棚水泵', type: '水泵', location: '1 号大棚', status: 'running', power: 3.5, icon: 'Pouring' },
+      { id: 'D-NS-102', name: '1 号大棚风机', type: '风机', location: '1 号大棚', status: 'stopped', power: 1.8, icon: 'WindPower' },
+      { id: 'D-NS-103', name: '1 号大棚卷帘', type: '卷帘', location: '1 号大棚', status: 'running', power: 0.8, icon: 'Switch' },
+      { id: 'D-NS-104', name: '1 号大棚补光灯', type: '补光灯', location: '1 号大棚', status: 'stopped', power: 2.0, icon: 'Sunny' },
+      { id: 'D-NS-201', name: '2 号大棚水泵', type: '水泵', location: '2 号大棚', status: 'stopped', power: 3.5, icon: 'Pouring' },
+      { id: 'D-NS-202', name: '2 号大棚风机', type: '风机', location: '2 号大棚', status: 'running', power: 1.8, icon: 'WindPower', alarm: '电流异常' },
+      { id: 'D-NS-203', name: '2 号大棚卷帘', type: '卷帘', location: '2 号大棚', status: 'running', power: 0.8, icon: 'Switch' },
+      { id: 'D-NS-204', name: '2 号大棚补光灯', type: '补光灯', location: '2 号大棚', status: 'running', power: 2.0, icon: 'Sunny' },
+      { id: 'D-NS-301', name: '3 号大棚水泵', type: '水泵', location: '3 号大棚', status: 'offline', power: 3.5, icon: 'Pouring', alarm: '设备离线' },
+      { id: 'D-NS-302', name: '3 号大棚风机', type: '风机', location: '3 号大棚', status: 'stopped', power: 1.8, icon: 'WindPower' },
+      { id: 'D-NS-303', name: '3 号大棚卷帘', type: '卷帘', location: '3 号大棚', status: 'stopped', power: 0.8, icon: 'Switch' },
+      { id: 'D-NS-304', name: '3 号大棚补光灯', type: '补光灯', location: '3 号大棚', status: 'stopped', power: 2.0, icon: 'Sunny' },
+      { id: 'D-NS-B01', name: 'B-01 增氧机', type: '增氧机', location: 'B-01 水产区', status: 'running', power: 2.2, icon: 'Ship' },
+    ],
+  },
+  {
+    park: '清水有机蔬菜基地',
+    devices: [
+      { id: 'D-QS-401', name: '4 号大棚水泵', type: '水泵', location: '4 号大棚', status: 'running', power: 3.5, icon: 'Pouring' },
+      { id: 'D-QS-402', name: '4 号大棚风机', type: '风机', location: '4 号大棚', status: 'running', power: 1.8, icon: 'WindPower' },
+      { id: 'D-QS-403', name: '4 号大棚卷帘', type: '卷帘', location: '4 号大棚', status: 'running', power: 0.8, icon: 'Switch' },
+      { id: 'D-QS-404', name: '4 号大棚补光灯', type: '补光灯', location: '4 号大棚', status: 'stopped', power: 2.0, icon: 'Sunny' },
+      { id: 'D-QS-501', name: '5 号大棚水泵', type: '水泵', location: '5 号大棚', status: 'stopped', power: 3.5, icon: 'Pouring' },
+      { id: 'D-QS-502', name: '5 号大棚风机', type: '风机', location: '5 号大棚', status: 'stopped', power: 1.8, icon: 'WindPower' },
+      { id: 'D-QS-503', name: '5 号大棚卷帘', type: '卷帘', location: '5 号大棚', status: 'stopped', power: 0.8, icon: 'Switch' },
+      { id: 'D-QS-504', name: '5 号大棚补光灯', type: '补光灯', location: '5 号大棚', status: 'running', power: 2.0, icon: 'Sunny' },
+      { id: 'D-QS-601', name: '6 号大棚水泵', type: '水泵', location: '6 号大棚', status: 'running', power: 3.5, icon: 'Pouring' },
+      { id: 'D-QS-602', name: '6 号大棚风机', type: '风机', location: '6 号大棚', status: 'stopped', power: 1.8, icon: 'WindPower' },
+      { id: 'D-QS-603', name: '6 号大棚卷帘', type: '卷帘', location: '6 号大棚', status: 'running', power: 0.8, icon: 'Switch' },
+      { id: 'D-QS-604', name: '6 号大棚补光灯', type: '补光灯', location: '6 号大棚', status: 'stopped', power: 2.0, icon: 'Sunny' },
+      { id: 'D-QS-Q04', name: 'Q-04 增氧机', type: '增氧机', location: 'Q-04 育苗区', status: 'stopped', power: 2.2, icon: 'Ship' },
+    ],
+  },
+  {
+    park: '花溪生态果园',
+    devices: [
+      { id: 'D-HX-H01', name: 'H-01 灌溉水泵', type: '水泵', location: 'H-01 柑橘园', status: 'stopped', power: 3.5, icon: 'Pouring' },
+      { id: 'D-HX-H04', name: 'H-04 增氧机', type: '增氧机', location: 'H-04 葡萄园', status: 'running', power: 2.2, icon: 'Ship' },
+    ],
+  },
+]
+
+export const controlDeviceSummary = { total: 29, running: 13, stopped: 15, offline: 1 }
+
+// ---- 自动联动策略配置 ----
+export const linkageStrategies = [
+  {
+    id: 'LS-001',
+    name: '高温自动通风',
+    target: '2 号大棚风机 + 卷帘',
+    enabled: true,
+    logic: 'AND',
+    conditions: [
+      { metric: '空气温度', operator: '>', value: 30, unit: '℃' },
+      { metric: '空气湿度', operator: '>', value: 75, unit: '%' },
+    ],
+    action: '开启风机与卷帘通风降温',
+    lastTrigger: '2026-11-04 13:22:10',
+  },
+  {
+    id: 'LS-002',
+    name: '低湿自动灌溉',
+    target: '1 号大棚水泵',
+    enabled: true,
+    logic: 'OR',
+    conditions: [
+      { metric: '土壤湿度', operator: '<', value: 40, unit: '%' },
+      { metric: '土壤湿度变化率', operator: '<', value: -5, unit: '%/h' },
+    ],
+    action: '启动水泵滴灌 20 分钟',
+    lastTrigger: '2026-11-05 06:10:33',
+  },
+  {
+    id: 'LS-003',
+    name: '弱光自动补光',
+    target: '2 号大棚补光灯',
+    enabled: true,
+    logic: 'AND',
+    conditions: [
+      { metric: '光照强度', operator: '<', value: 20, unit: 'klx' },
+      { metric: '时段', operator: '在', value: '06:00-18:00', unit: '' },
+    ],
+    action: '开启补光灯',
+    lastTrigger: '2026-11-05 07:02:18',
+  },
+  {
+    id: 'LS-004',
+    name: '低溶氧增氧保护',
+    target: 'B-01 增氧机',
+    enabled: true,
+    logic: 'OR',
+    conditions: [
+      { metric: '溶解氧', operator: '<', value: 5, unit: 'mg/L' },
+      { metric: '水温', operator: '>', value: 26, unit: '℃' },
+    ],
+    action: '开启增氧机并推送告警',
+    lastTrigger: '2026-11-02 22:30:15',
+  },
+  {
+    id: 'LS-005',
+    name: '定时晨灌',
+    target: '4 号大棚水泵 + 6 号大棚水泵',
+    enabled: false,
+    logic: '定时',
+    conditions: [
+      { metric: '定时', operator: '每天', value: '06:00', unit: '' },
+    ],
+    action: '启动水泵灌溉 30 分钟',
+    lastTrigger: '2026-11-04 06:00:00',
+  },
+]
+
+export const sceneTemplates = [
+  { id: 'ST-01', name: '夏季降温模式', description: '温度>30℃ 开风机+卷帘，光照>60klx 半开遮阳', devices: '风机 / 卷帘 / 水泵', enabled: false },
+  { id: 'ST-02', name: '冬季保温模式', description: '温度<8℃ 关闭卷帘，夜间补光灯定时补温', devices: '卷帘 / 补光灯', enabled: false },
+  { id: 'ST-03', name: '育苗专用模式', description: '湿度维持 70-80%，弱光自动补光，晨昏各灌溉一次', devices: '水泵 / 补光灯 / 风机', enabled: true },
+  { id: 'ST-04', name: '水产增氧模式', description: '溶氧<5mg/L 或夜间 00:00-05:00 增氧机常开', devices: '增氧机', enabled: true },
+]
+
+// ---- 分组控制 ----
+export const controlGroups = [
+  {
+    id: 'CG-01',
+    name: '南山园区 1 号大棚组',
+    type: '大棚',
+    deviceCount: 4,
+    locked: false,
+    devices: ['1 号大棚水泵', '1 号大棚风机', '1 号大棚卷帘', '1 号大棚补光灯'],
+  },
+  {
+    id: 'CG-02',
+    name: '南山园区 2 号大棚组',
+    type: '大棚',
+    deviceCount: 4,
+    locked: false,
+    devices: ['2 号大棚水泵', '2 号大棚风机', '2 号大棚卷帘', '2 号大棚补光灯'],
+  },
+  {
+    id: 'CG-03',
+    name: '南山园区 3 号大棚组',
+    type: '大棚',
+    deviceCount: 4,
+    locked: true,
+    lockReason: '水泵故障检修中（WO20261103001），禁止批量操作',
+    devices: ['3 号大棚水泵', '3 号大棚风机', '3 号大棚卷帘', '3 号大棚补光灯'],
+  },
+  {
+    id: 'CG-04',
+    name: '清水基地 4 号大棚组',
+    type: '大棚',
+    deviceCount: 4,
+    locked: false,
+    devices: ['4 号大棚水泵', '4 号大棚风机', '4 号大棚卷帘', '4 号大棚补光灯'],
+  },
+  {
+    id: 'CG-05',
+    name: '清水基地 5 号大棚组',
+    type: '大棚',
+    deviceCount: 4,
+    locked: false,
+    devices: ['5 号大棚水泵', '5 号大棚风机', '5 号大棚卷帘', '5 号大棚补光灯'],
+  },
+  {
+    id: 'CG-06',
+    name: '清水基地 6 号大棚组',
+    type: '大棚',
+    deviceCount: 4,
+    locked: false,
+    devices: ['6 号大棚水泵', '6 号大棚风机', '6 号大棚卷帘', '6 号大棚补光灯'],
+  },
+  {
+    id: 'CG-07',
+    name: 'A-02 蔬菜大棚区地块组',
+    type: '地块',
+    deviceCount: 8,
+    locked: false,
+    devices: ['1 号大棚水泵', '1 号大棚风机', '1 号大棚卷帘', '1 号大棚补光灯', '2 号大棚水泵', '2 号大棚风机', '2 号大棚卷帘', '2 号大棚补光灯'],
+  },
+  {
+    id: 'CG-08',
+    name: 'B-01 水产区增氧组',
+    type: '地块',
+    deviceCount: 1,
+    locked: false,
+    devices: ['B-01 增氧机'],
+  },
+]
+
+// ---- 水肥配方与一体机 ----
+export const fertilizerFormulas = [
+  { id: 'FF-01', name: '番茄膨果期配方', crop: '番茄', stage: '膨果期', n: 15, p: 5, k: 30, ec: 2.2, ph: 6.0, usage: 'A-02 蔬菜大棚区' },
+  { id: 'FF-02', name: '黄瓜结果期配方', crop: '黄瓜', stage: '结果期', n: 20, p: 10, k: 20, ec: 2.0, ph: 6.2, usage: 'Q-03 黄瓜区' },
+  { id: 'FF-03', name: '叶菜通用配方', crop: '生菜', stage: '全生育期', n: 18, p: 6, k: 12, ec: 1.6, ph: 6.3, usage: 'Q-01 叶菜区' },
+  { id: 'FF-04', name: '草莓花期配方', crop: '草莓', stage: '花期', n: 10, p: 30, k: 20, ec: 1.4, ph: 5.8, usage: 'B-02 草莓园' },
+  { id: 'FF-05', name: '葡萄转色期配方', crop: '葡萄', stage: '转色期', n: 8, p: 15, k: 35, ec: 1.8, ph: 6.1, usage: 'B-01 / H-04 葡萄园' },
+  { id: 'FF-06', name: '水稻分蘖期配方', crop: '水稻', stage: '分蘖期', n: 25, p: 8, k: 10, ec: 1.5, ph: 6.5, usage: 'A-01 大田' },
+]
+
+export const fertilizerMachines = [
+  {
+    id: 'FM-NS-01',
+    name: '南山园区 1 号水肥一体机',
+    location: '1 号大棚',
+    status: 'running',
+    mode: '自动',
+    currentFormula: '番茄膨果期配方',
+    flowRate: 2.4,
+    tankLevel: 68,
+    todayWater: 36.5,
+    todayFertilizer: 118,
+  },
+  {
+    id: 'FM-NS-02',
+    name: '南山园区 2 号水肥一体机',
+    location: '2 号大棚',
+    status: 'stopped',
+    mode: '手动',
+    currentFormula: '草莓花期配方',
+    flowRate: 0,
+    tankLevel: 45,
+    todayWater: 22.0,
+    todayFertilizer: 76,
+  },
+  {
+    id: 'FM-QS-01',
+    name: '清水基地水肥一体机',
+    location: '4 号大棚',
+    status: 'running',
+    mode: '自动',
+    currentFormula: '叶菜通用配方',
+    flowRate: 2.8,
+    tankLevel: 82,
+    todayWater: 41.2,
+    todayFertilizer: 132,
+  },
+]
+
+// ---- 控制日志 ----
+export const controlLogs = [
+  { id: 1, operator: '李运维', role: '运维人员', device: '1 号大棚水泵', action: '远程启动', channel: '手动控制', result: '成功', time: '2026-11-05 09:42:18' },
+  { id: 2, operator: '系统联动', role: '自动策略', device: '2 号大棚补光灯', action: '开启（弱光自动补光）', channel: '联动策略', result: '成功', time: '2026-11-05 07:02:18' },
+  { id: 3, operator: '系统联动', role: '自动策略', device: '1 号大棚水泵', action: '启动滴灌 20 分钟（低湿自动灌溉）', channel: '联动策略', result: '成功', time: '2026-11-05 06:10:33' },
+  { id: 4, operator: '王建国', role: '农场管理者', device: '南山园区 1 号水肥一体机', action: '下发配方「番茄膨果期配方」', channel: '水肥控制', result: '成功', time: '2026-11-04 17:25:40' },
+  { id: 5, operator: '周运维', role: '运维人员', device: '4 号大棚风机', action: '远程启动', channel: '分组控制', result: '成功', time: '2026-11-04 15:38:02' },
+  { id: 6, operator: '李运维', role: '运维人员', device: '3 号大棚水泵', action: '远程启动', channel: '手动控制', result: '失败：设备离线', time: '2026-11-04 11:12:55' },
+  { id: 7, operator: '系统联动', role: '自动策略', device: '2 号大棚风机 + 卷帘', action: '开启通风（高温自动通风）', channel: '联动策略', result: '成功', time: '2026-11-04 13:22:10' },
+  { id: 8, operator: '陈农艺', role: '农技人员', device: '清水基地水肥一体机', action: '下发配方「叶菜通用配方」', channel: '水肥控制', result: '成功', time: '2026-11-04 08:46:21' },
+  { id: 9, operator: '兰东凤', role: '系统管理员', device: '南山园区 3 号大棚组', action: '上锁（检修保护）', channel: '分组控制', result: '成功', time: '2026-11-03 10:05:30' },
+  { id: 10, operator: '系统联动', role: '自动策略', device: 'B-01 增氧机', action: '开启增氧（低溶氧增氧保护）', channel: '联动策略', result: '成功', time: '2026-11-02 22:30:15' },
+  { id: 11, operator: '李运维', role: '运维人员', device: 'B-01 增氧机', action: '远程停止', channel: '手动控制', result: '成功', time: '2026-11-02 20:15:44' },
+  { id: 12, operator: '王建国', role: '农场管理者', device: 'A-02 蔬菜大棚区地块组', action: '批量开启卷帘', channel: '分组控制', result: '成功', time: '2026-11-02 08:30:12' },
+]
+
+// ---- 水电统计 ----
+export const utilityDaily7d = {
+  dates: ['10-30', '10-31', '11-01', '11-02', '11-03', '11-04', '11-05'],
+  water: [152, 168, 145, 178, 162, 155, 99.7], // m³，11-05 为当日累计
+  electricity: [286, 302, 274, 318, 296, 288, 173], // kWh
+}
+
+export const utilityByPark = [
+  { name: '南山智慧农业示范园', water: 58, electricity: 96 },
+  { name: '清水有机蔬菜基地', water: 30, electricity: 52 },
+  { name: '花溪生态果园', water: 11.7, electricity: 25 },
+]
+
+export const utilitySummary = {
+  todayWater: 99.7, // m³，与 utilityDaily7d 11-05 一致
+  todayElectricity: 173, // kWh
+  monthWater: 1160, // 与水肥统计口径一致
+  monthElectricity: 4260,
+}

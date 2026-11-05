@@ -56,6 +56,17 @@ const menus = [
       { path: '/iot-monitor/collection', title: '采集管理', icon: 'SetUp' },
     ],
   },
+  {
+    title: '远程智能控制',
+    icon: 'Switch',
+    children: [
+      { path: '/control/manual', title: '设备手动控制台', icon: 'Switch' },
+      { path: '/control/strategy', title: '自动联动策略配置', icon: 'SetUp' },
+      { path: '/control/group', title: '分组控制', icon: 'Grid' },
+      { path: '/control/fertilizer', title: '水肥配方控制', icon: 'Pouring' },
+      { path: '/control/logs', title: '控制日志与水电', icon: 'Document' },
+    ],
+  },
 ]
 
 const activeMenu = computed(() => route.path)

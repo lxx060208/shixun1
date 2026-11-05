@@ -36,6 +36,17 @@ import {
   alarmLevelDist,
   farmWeekly,
   farmOrders,
+  controlDeviceGroups,
+  controlDeviceSummary,
+  linkageStrategies,
+  sceneTemplates,
+  controlGroups,
+  fertilizerFormulas,
+  fertilizerMachines,
+  controlLogs,
+  utilityDaily7d,
+  utilityByPark,
+  utilitySummary,
 } from './mock'
 
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -347,5 +358,143 @@ export async function getAlarmFarmPanelApi() {
     levelDist: alarmLevelDist.map((i) => ({ ...i })),
     farmWeekly: { ...farmWeekly },
     farmOrders: farmOrders.map((o) => ({ ...o })),
+  }
+}
+
+/* ------------------------- 远程智能控制与水肥 ------------------------- */
+export async function getControlDevicesApi() {
+  await delay()
+  return {
+    summary: { ...controlDeviceSummary },
+    groups: JSON.parse(JSON.stringify(controlDeviceGroups)),
+  }
+}
+
+export async function controlDeviceApi(id, action) {
+  await delay(500)
+  const all = controlDeviceGroups.flatMap((g) => g.devices)
+  const device = all.find((d) => d.id === id)
+  if (!device) throw new Error('设备不存在')
+  if (device.status === 'offline') throw new Error(`「${device.name}」当前离线，无法控制`)
+  device.status = action === 'start' ? 'running' : 'stopped'
+  return { ...device }
+}
+
+export async function getLinkageStrategiesApi() {
+  await delay()
+  return {
+    strategies: JSON.parse(JSON.stringify(linkageStrategies)),
+    templates: sceneTemplates.map((t) => ({ ...t })),
+  }
+}
+
+export async function toggleStrategyApi(id, enabled) {
+  await delay()
+  const s = linkageStrategies.find((i) => i.id === id)
+  if (s) s.enabled = enabled
+  return { success: true }
+}
+
+export async function toggleSceneTemplateApi(id, enabled) {
+  await delay()
+  const t = sceneTemplates.find((i) => i.id === id)
+  if (t) t.enabled = enabled
+  return { success: true }
+}
+
+export async function saveStrategyApi(payload) {
+  await delay()
+  if (payload.id) {
+    const idx = linkageStrategies.findIndex((s) => s.id === payload.id)
+    if (idx > -1) linkageStrategies[idx] = { ...linkageStrategies[idx], ...payload }
+    return { ...linkageStrategies[idx] }
+  }
+  const record = { ...payload, id: `LS-${String(linkageStrategies.length + 1).padStart(3, '0')}`, lastTrigger: '--' }
+  linkageStrategies.push(record)
+  return { ...record }
+}
+
+export async function deleteStrategyApi(id) {
+  await delay()
+  const idx = linkageStrategies.findIndex((s) => s.id === id)
+  if (idx > -1) linkageStrategies.splice(idx, 1)
+  return { success: true }
+}
+
+export async function getControlGroupsApi() {
+  await delay()
+  return JSON.parse(JSON.stringify(controlGroups))
+}
+
+export async function toggleGroupLockApi(id, locked) {
+  await delay()
+  const g = controlGroups.find((i) => i.id === id)
+  if (g) g.locked = locked
+  return { success: true }
+}
+
+export async function groupControlApi(id, action) {
+  await delay(600)
+  const g = controlGroups.find((i) => i.id === id)
+  if (!g) throw new Error('分组不存在')
+  if (g.locked) throw new Error(`「${g.name}」已上锁，禁止批量操作`)
+  return { success: true, affected: g.deviceCount }
+}
+
+export async function getFertilizerApi() {
+  await delay()
+  return {
+    formulas: fertilizerFormulas.map((f) => ({ ...f })),
+    machines: fertilizerMachines.map((m) => ({ ...m })),
+  }
+}
+
+export async function saveFormulaApi(payload) {
+  await delay()
+  if (payload.id) {
+    const idx = fertilizerFormulas.findIndex((f) => f.id === payload.id)
+    if (idx > -1) fertilizerFormulas[idx] = { ...fertilizerFormulas[idx], ...payload }
+    return { ...fertilizerFormulas[idx] }
+  }
+  const record = { ...payload, id: `FF-${String(fertilizerFormulas.length + 1).padStart(2, '0')}` }
+  fertilizerFormulas.push(record)
+  return { ...record }
+}
+
+export async function deleteFormulaApi(id) {
+  await delay()
+  const idx = fertilizerFormulas.findIndex((f) => f.id === id)
+  if (idx > -1) fertilizerFormulas.splice(idx, 1)
+  return { success: true }
+}
+
+export async function applyFormulaApi(machineId, formulaName) {
+  await delay(600)
+  const m = fertilizerMachines.find((i) => i.id === machineId)
+  if (!m) throw new Error('水肥一体机不存在')
+  m.currentFormula = formulaName
+  return { ...m }
+}
+
+export async function toggleMachineApi(id, action) {
+  await delay(500)
+  const m = fertilizerMachines.find((i) => i.id === id)
+  if (!m) throw new Error('水肥一体机不存在')
+  m.status = action === 'start' ? 'running' : 'stopped'
+  if (m.status === 'stopped') m.flowRate = 0
+  return { ...m }
+}
+
+export async function getControlLogsApi() {
+  await delay()
+  return controlLogs.map((l) => ({ ...l }))
+}
+
+export async function getUtilityStatsApi() {
+  await delay()
+  return {
+    summary: { ...utilitySummary },
+    daily: { ...utilityDaily7d },
+    byPark: utilityByPark.map((p) => ({ ...p })),
   }
 }
