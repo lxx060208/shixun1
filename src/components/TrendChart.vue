@@ -174,8 +174,8 @@ function barWidth() {
 }
 
 .axis-label {
-  font-size: 11px;
-  fill: #a1a9b3;
+  font-size: 12px;
+  fill: #8a93a0;
 }
 
 .line {

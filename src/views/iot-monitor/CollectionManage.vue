@@ -1,7 +1,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getDevicesApi, saveDeviceApi, deleteDeviceApi, toggleDeviceApi, getHistoryApi } from '@/api/iot'
+
+const route = useRoute()
 
 const loading = ref(true)
 const devices = ref([])
@@ -105,7 +108,13 @@ function searchHistory() {
   queryHistory()
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  const t = route.query.type
+  if (['air', 'soil', 'water', 'weather'].includes(t)) {
+    historyType.value = t
+  }
+  loadAll()
+})
 </script>
 
 <template>
