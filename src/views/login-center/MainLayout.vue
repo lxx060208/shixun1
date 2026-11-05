@@ -22,6 +22,18 @@ const menus = [
     ],
   },
   {
+    title: '数据展示',
+    icon: 'DataAnalysis',
+    children: [
+      { path: '/data/overview', title: '平台数据总览', icon: 'DataAnalysis' },
+      { path: '/data/gis-map', title: 'GIS园区地图', icon: 'MapLocation' },
+      { path: '/data/realtime', title: '实时环境数据', icon: 'Odometer' },
+      { path: '/data/water-fertilizer', title: '水肥与产量统计', icon: 'Pouring' },
+      { path: '/data/device-dashboard', title: '设备运维大屏', icon: 'Monitor' },
+      { path: '/data/alarm-farm', title: '告警与农事进度', icon: 'BellFilled' },
+    ],
+  },
+  {
     title: '系统管理',
     icon: 'Setting',
     children: [

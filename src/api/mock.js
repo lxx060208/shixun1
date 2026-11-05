@@ -303,3 +303,198 @@ export const rolePermissions = {
   sales: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify', 'data-scope', 'data-self'],
   agronomist: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'data-scope', 'data-self'],
 }
+
+/* ==================== 数据展示模块 ==================== */
+// 口径与 dashboardStats 保持一致：3 个园区 / 1286 亩 / 在线率 96.4% / 今日告警 12 条 / 累计产量 38500kg
+// 园区名称与租户档案一致：南山智慧农业示范园、清水有机蔬菜基地、花溪生态果园
+
+// ---- 平台数据总览 ----
+export const overviewStats = { ...dashboardStats }
+
+export const parkSummaries = [
+  { name: '南山智慧农业示范园', area: 620, yield: 18.6 },
+  { name: '清水有机蔬菜基地', area: 426, yield: 12.9 },
+  { name: '花溪生态果园', area: 240, yield: 7.0 },
+]
+
+export const alarmTrend7d = {
+  dates: ['10-30', '10-31', '11-01', '11-02', '11-03', '11-04', '11-05'],
+  values: [8, 10, 15, 9, 14, 10, 12],
+}
+
+// ---- GIS 园区地图 ----
+export const gisParks = [
+  {
+    id: 1,
+    name: '南山智慧农业示范园',
+    plots: [
+      { id: 'A-01', name: 'A-01 大田', points: '60,60 300,60 300,200 60,200', crop: '水稻', area: 120, color: '#d3f9d8' },
+      { id: 'A-02', name: 'A-02 蔬菜大棚区', points: '320,60 560,60 560,200 320,200', crop: '番茄', area: 180, color: '#e7f5ff' },
+      { id: 'B-01', name: 'B-01 葡萄园', points: '60,220 240,220 240,380 60,380', crop: '葡萄', area: 200, color: '#f3f0ff' },
+      { id: 'B-02', name: 'B-02 草莓园', points: '260,220 560,220 560,380 260,380', crop: '草莓', area: 120, color: '#fff0f6' },
+    ],
+    greenhouses: [
+      { id: 'G-1', name: '1 号大棚', x: 130, y: 120, plot: 'A-02 蔬菜大棚区' },
+      { id: 'G-2', name: '2 号大棚', x: 420, y: 130, plot: 'A-02 蔬菜大棚区' },
+      { id: 'G-3', name: '3 号大棚', x: 400, y: 300, plot: 'B-02 草莓园' },
+    ],
+    sensors: [
+      { id: 'A-03', name: 'A-03 土壤传感器', type: '土壤', x: 100, y: 100, online: true, data: { '土壤温度': '19.8℃', '土壤湿度': '78%（偏高）', 'EC值': '1.6mS/cm', 'PH值': '6.8' } },
+      { id: 'A-04', name: 'A-04 空气温湿度传感器', type: '空气', x: 260, y: 170, online: true, data: { '空气温度': '24.6℃', '空气湿度': '62%', 'CO₂浓度': '612ppm', '光照强度': '32klx' } },
+      { id: 'B-01', name: 'B-01 水质传感器', type: '水体', x: 150, y: 330, online: true, data: { '水温': '17.2℃', '溶解氧': '4.6mg/L（偏低）', 'PH值': '7.1', '浊度': '2.4NTU' } },
+      { id: 'B-03', name: 'B-03 土壤传感器', type: '土壤', x: 340, y: 330, online: true, data: { '土壤温度': '18.5℃', '土壤湿度': '44%', 'EC值': '1.4mS/cm', 'PH值': '6.6' } },
+      { id: 'G-3-P', name: '3 号大棚水泵', type: '设备', x: 480, y: 300, online: false, data: { '状态': '离线', '最近告警': '设备离线（严重）', '上报时间': '2026-11-03 09:28:11' } },
+    ],
+  },
+  {
+    id: 2,
+    name: '清水有机蔬菜基地',
+    plots: [
+      { id: 'Q-01', name: 'Q-01 叶菜区', points: '60,60 300,60 300,200 60,200', crop: '生菜', area: 126, color: '#d3f9d8' },
+      { id: 'Q-02', name: 'Q-02 番茄区', points: '320,60 560,60 560,200 320,200', crop: '番茄', area: 110, color: '#fff0f6' },
+      { id: 'Q-03', name: 'Q-03 黄瓜区', points: '60,220 240,220 240,380 60,380', crop: '黄瓜', area: 100, color: '#fff9db' },
+      { id: 'Q-04', name: 'Q-04 育苗区', points: '260,220 560,220 560,380 260,380', crop: '育苗', area: 90, color: '#e7f5ff' },
+    ],
+    greenhouses: [
+      { id: 'G-4', name: '4 号大棚', x: 130, y: 120, plot: 'Q-01 叶菜区' },
+      { id: 'G-5', name: '5 号大棚', x: 420, y: 130, plot: 'Q-02 番茄区' },
+      { id: 'G-6', name: '6 号大棚', x: 150, y: 300, plot: 'Q-03 黄瓜区' },
+    ],
+    sensors: [
+      { id: 'Q-01-S', name: 'Q-01 土壤传感器', type: '土壤', x: 240, y: 150, online: true, data: { '土壤温度': '18.9℃', '土壤湿度': '46%', 'EC值': '1.2mS/cm', 'PH值': '6.5' } },
+      { id: 'Q-02-A', name: 'Q-02 空气温湿度传感器', type: '空气', x: 480, y: 110, online: true, data: { '空气温度': '25.1℃', '空气湿度': '58%', 'CO₂浓度': '590ppm', '光照强度': '30klx' } },
+      { id: 'Q-03-S', name: 'Q-03 土壤传感器', type: '土壤', x: 180, y: 340, online: true, data: { '土壤温度': '19.2℃', '土壤湿度': '43%', 'EC值': '1.3mS/cm', 'PH值': '6.7' } },
+      { id: 'Q-04-W', name: 'Q-04 水质传感器', type: '水体', x: 400, y: 320, online: true, data: { '水温': '16.8℃', '溶解氧': '7.8mg/L', 'PH值': '7.0', '浊度': '1.8NTU' } },
+    ],
+  },
+  {
+    id: 3,
+    name: '花溪生态果园',
+    plots: [
+      { id: 'H-01', name: 'H-01 柑橘园', points: '60,60 300,60 300,200 60,200', crop: '柑橘', area: 90, color: '#fff4e6' },
+      { id: 'H-02', name: 'H-02 桃园', points: '320,60 560,60 560,200 320,200', crop: '桃', area: 60, color: '#fff0f6' },
+      { id: 'H-03', name: 'H-03 李园', points: '60,220 240,220 240,380 60,380', crop: '李', area: 50, color: '#e7f5ff' },
+      { id: 'H-04', name: 'H-04 葡萄园', points: '260,220 560,220 560,380 260,380', crop: '葡萄', area: 40, color: '#f3f0ff' },
+    ],
+    greenhouses: [],
+    sensors: [
+      { id: 'H-01-A', name: 'H-01 空气温湿度传感器', type: '空气', x: 130, y: 110, online: true, data: { '空气温度': '23.8℃', '空气湿度': '65%', 'CO₂浓度': '580ppm', '光照强度': '36klx' } },
+      { id: 'H-01-S', name: 'H-01 土壤传感器', type: '土壤', x: 240, y: 160, online: true, data: { '土壤温度': '18.2℃', '土壤湿度': '40%', 'EC值': '1.1mS/cm', 'PH值': '6.4' } },
+      { id: 'H-02-S', name: 'H-02 土壤传感器', type: '土壤', x: 440, y: 140, online: false, data: { '土壤温度': '--', '土壤湿度': '--', 'EC值': '--', 'PH值': '--' } },
+      { id: 'H-04-W', name: 'H-04 水质传感器', type: '水体', x: 340, y: 320, online: true, data: { '水温': '16.5℃', '溶解氧': '8.2mg/L', 'PH值': '7.2', '浊度': '1.5NTU' } },
+    ],
+  },
+]
+
+// ---- 实时环境数据 ----
+export const realtimeMetrics = {
+  air: [
+    { key: 'temp', label: '空气温度', value: 24.6, unit: '℃', min: 15, max: 35, icon: 'Sunny', color: '#e8590c' },
+    { key: 'humidity', label: '空气湿度', value: 62, unit: '%', min: 40, max: 90, icon: 'Pouring', color: '#1c7ed6' },
+    { key: 'co2', label: 'CO₂浓度', value: 612, unit: 'ppm', min: 400, max: 1200, icon: 'WindPower', color: '#7048e8' },
+    { key: 'light', label: '光照强度', value: 32, unit: 'klx', min: 0, max: 80, icon: 'Sunrise', color: '#f59f00' },
+  ],
+  soil: [
+    { key: 'soilTemp', label: '土壤温度', value: 19.8, unit: '℃', min: 10, max: 30, icon: 'Sunny', color: '#e8590c' },
+    { key: 'soilHumidity', label: '土壤湿度', value: 41, unit: '%', min: 30, max: 70, icon: 'Pouring', color: '#1c7ed6' },
+    { key: 'ec', label: 'EC值', value: 1.6, unit: 'mS/cm', min: 0.8, max: 3.0, icon: 'Odometer', color: '#2f9e44' },
+    { key: 'ph', label: 'PH值', value: 6.8, unit: '', min: 5.5, max: 7.5, icon: 'ScaleToOriginal', color: '#0ca678' },
+  ],
+  water: [
+    { key: 'waterTemp', label: '水温', value: 17.2, unit: '℃', min: 10, max: 28, icon: 'Sunny', color: '#e8590c' },
+    { key: 'oxygen', label: '溶解氧', value: 7.8, unit: 'mg/L', min: 5, max: 12, icon: 'Ship', color: '#1c7ed6' },
+    { key: 'waterPh', label: 'PH值', value: 7.1, unit: '', min: 6.5, max: 8.5, icon: 'ScaleToOriginal', color: '#0ca678' },
+    { key: 'turbidity', label: '浊度', value: 2.4, unit: 'NTU', min: 0, max: 10, icon: 'Aim', color: '#7048e8' },
+  ],
+}
+
+// ---- 水肥与产量统计 ----
+export const waterFertilizerMonthly = {
+  months: ['6月', '7月', '8月', '9月', '10月', '11月'],
+  water: [980, 1260, 1520, 1380, 1240, 1160],
+  fertilizer: [3.2, 4.1, 4.8, 4.3, 3.9, 3.6],
+}
+
+export const waterFertilizerSummary = {
+  monthWater: 1160, // m³
+  monthFertilizer: 3.6, // 吨
+  coverage: 87, // 水肥一体化覆盖率 %
+  seasonForecast: 12.6, // 本季预测产量 吨
+}
+
+export const yieldForecastPie = [
+  { name: '水稻', value: 4.2 },
+  { name: '番茄', value: 3.1 },
+  { name: '黄瓜', value: 2.4 },
+  { name: '草莓', value: 1.8 },
+  { name: '其他果蔬', value: 1.1 },
+]
+
+export const yieldCompare = {
+  months: ['6月', '7月', '8月', '9月', '10月', '11月'],
+  actual: [5.2, 6.8, 7.5, 7.1, 8.4, null],
+  forecast: [5.0, 6.5, 7.2, 7.4, 8.0, 8.8],
+}
+
+// ---- 设备运维大屏 ----
+// 在线 162 / 总数 168 ≈ 96.4%，与 overviewStats.deviceOnlineRate 一致
+export const deviceStats = { total: 168, online: 162, fault: 6, runningOrders: 5 }
+
+export const deviceOnlineRate7d = {
+  dates: ['10-30', '10-31', '11-01', '11-02', '11-03', '11-04', '11-05'],
+  values: [95.8, 96.9, 97.0, 96.4, 95.2, 96.4, 96.4],
+}
+
+export const deviceFault7d = {
+  dates: ['10-30', '10-31', '11-01', '11-02', '11-03', '11-04', '11-05'],
+  added: [2, 3, 1, 4, 3, 2, 3],
+  fixed: [1, 3, 2, 3, 4, 3, 2],
+}
+
+export const deviceTypeDist = [
+  { name: '传感器', value: 72 },
+  { name: '灌溉设备', value: 38 },
+  { name: '环境调控', value: 34 },
+  { name: '监控摄像', value: 16 },
+  { name: '其他', value: 8 },
+]
+
+export const deviceWorkOrders = [
+  { id: 'WO20261103001', device: '3 号大棚水泵', type: '故障维修', assignee: '李运维', progress: 60, status: '处理中' },
+  { id: 'WO20261103002', device: '2 号大棚风机', type: '故障维修', assignee: '周运维', progress: 85, status: '处理中' },
+  { id: 'WO20261102003', device: 'B-01 水质传感器', type: '校准维护', assignee: '李运维', progress: 100, status: '已完成' },
+  { id: 'WO20261102004', device: 'A 区滴灌电磁阀组', type: '定期保养', assignee: '周运维', progress: 100, status: '已完成' },
+  { id: 'WO20261101005', device: '园区气象站', type: '巡检', assignee: '李运维', progress: 100, status: '已完成' },
+  { id: 'WO20261105006', device: 'H-02 土壤传感器', type: '故障维修', assignee: '周运维', progress: 0, status: '待接单' },
+]
+
+// ---- 告警与农事进度面板 ----
+export const alarmPanelStats = { today: 12, severe: 2, farmOrderRate: 82, todayFarmTasks: 16 }
+
+// 近14日报警趋势，11-05 当日 7+3+2 = 12 条，与 alarmCount 一致
+export const alarmTrend14d = {
+  dates: ['10-23', '10-24', '10-25', '10-26', '10-27', '10-28', '10-29', '10-30', '10-31', '11-01', '11-02', '11-03', '11-04', '11-05'],
+  env: [6, 8, 5, 10, 7, 6, 9, 6, 8, 11, 7, 9, 6, 7],
+  device: [3, 4, 3, 2, 4, 5, 3, 2, 4, 3, 5, 4, 3, 3],
+  security: [1, 1, 2, 1, 2, 1, 1, 0, 1, 1, 1, 1, 1, 2],
+}
+
+export const alarmLevelDist = [
+  { name: '严重', value: 18 },
+  { name: '警告', value: 62 },
+  { name: '提示', value: 96 },
+]
+
+export const farmWeekly = {
+  days: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+  done: [5, 7, 6, 8, 9, 4, 3],
+  undone: [2, 1, 3, 1, 2, 2, 1],
+}
+
+export const farmOrders = [
+  { id: 'FM-1105-01', task: '水稻收割收尾', plot: '南山园区 A-01 大田', owner: '王建国', progress: 100, status: '已完成' },
+  { id: 'FM-1105-02', task: '番茄整枝打杈', plot: '南山园区 A-02 蔬菜大棚区', owner: '陈农艺', progress: 75, status: '进行中' },
+  { id: 'FM-1105-03', task: '草莓追肥', plot: '南山园区 B-02 草莓园', owner: '陈农艺', progress: 40, status: '进行中' },
+  { id: 'FM-1105-04', task: '生菜定植', plot: '清水基地 Q-01 叶菜区', owner: '刘星鑫', progress: 0, status: '未开始' },
+  { id: 'FM-1104-08', task: '果园病虫害巡查', plot: '花溪生态果园', owner: '陈农艺', progress: 100, status: '已完成' },
+]

@@ -13,6 +13,25 @@ import {
   latestAlarms,
   permissionTree,
   rolePermissions,
+  overviewStats,
+  parkSummaries,
+  alarmTrend7d,
+  gisParks,
+  realtimeMetrics,
+  waterFertilizerMonthly,
+  waterFertilizerSummary,
+  yieldForecastPie,
+  yieldCompare,
+  deviceStats,
+  deviceOnlineRate7d,
+  deviceFault7d,
+  deviceTypeDist,
+  deviceWorkOrders,
+  alarmPanelStats,
+  alarmTrend14d,
+  alarmLevelDist,
+  farmWeekly,
+  farmOrders,
 } from './mock'
 
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -201,4 +220,56 @@ export async function backupApi() {
 export async function restoreApi() {
   await delay(600)
   return { success: true }
+}
+
+/* ------------------------- 数据展示 ------------------------- */
+export async function getDataOverviewApi() {
+  await delay()
+  return {
+    stats: { ...overviewStats },
+    parks: parkSummaries.map((p) => ({ ...p })),
+    alarmTrend: { ...alarmTrend7d },
+  }
+}
+
+export async function getGisParksApi() {
+  await delay()
+  return JSON.parse(JSON.stringify(gisParks))
+}
+
+export async function getRealtimeMetricsApi() {
+  await delay()
+  return JSON.parse(JSON.stringify(realtimeMetrics))
+}
+
+export async function getWaterFertilizerApi() {
+  await delay()
+  return {
+    monthly: { ...waterFertilizerMonthly },
+    summary: { ...waterFertilizerSummary },
+    forecastPie: yieldForecastPie.map((i) => ({ ...i })),
+    compare: { ...yieldCompare },
+  }
+}
+
+export async function getDeviceDashboardApi() {
+  await delay()
+  return {
+    stats: { ...deviceStats },
+    onlineRate: { ...deviceOnlineRate7d },
+    fault: { ...deviceFault7d },
+    typeDist: deviceTypeDist.map((i) => ({ ...i })),
+    workOrders: deviceWorkOrders.map((o) => ({ ...o })),
+  }
+}
+
+export async function getAlarmFarmPanelApi() {
+  await delay()
+  return {
+    stats: { ...alarmPanelStats },
+    trend: { ...alarmTrend14d },
+    levelDist: alarmLevelDist.map((i) => ({ ...i })),
+    farmWeekly: { ...farmWeekly },
+    farmOrders: farmOrders.map((o) => ({ ...o })),
+  }
 }
