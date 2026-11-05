@@ -1,11 +1,25 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getOverviewApi } from '@/api/iot'
 import TrendChart from '@/components/TrendChart.vue'
 
+const router = useRouter()
+
 const loading = ref(true)
 const data = ref(null)
+
+const detailRoutes = {
+  air: '/iot-monitor/collection?type=air',
+  soil: '/iot-monitor/soil',
+  water: '/iot-monitor/water',
+  weather: '/iot-monitor/weather',
+}
+
+function goDetail(key) {
+  if (detailRoutes[key]) router.push(detailRoutes[key])
+}
 
 async function load() {
   loading.value = true
@@ -67,7 +81,7 @@ onMounted(load)
       <!-- 分类指标卡片 -->
       <el-row :gutter="16">
         <el-col v-for="cat in data.categories" :key="cat.key" :xs="24" :sm="12" :lg="6">
-          <el-card shadow="never" class="cat-card">
+          <el-card shadow="never" class="cat-card clickable" @click="goDetail(cat.key)">
             <div class="cat-head">
               <div class="cat-icon" :style="{ color: cat.color, background: cat.color + '1a' }">
                 <el-icon :size="20"><component :is="cat.icon" /></el-icon>
@@ -81,11 +95,15 @@ onMounted(load)
                   {{ m.label }}
                 </span>
                 <span class="metric-value">
-                  <b>{{ m.value }}</b>
+                  <b :class="{ 'warn-text': m.status === 'warn' }">{{ m.value }}</b>
                   <em v-if="m.unit">{{ m.unit }}</em>
                 </span>
               </li>
             </ul>
+            <div class="cat-foot">
+              <span>查看详情</span>
+              <el-icon><ArrowRight /></el-icon>
+            </div>
           </el-card>
         </el-col>
       </el-row>
@@ -125,22 +143,31 @@ onMounted(load)
 .kpi-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 16px;
+  gap: 8px;
+  padding: 18px 16px;
   margin-bottom: 16px;
-  background: #fff;
   border: 1px solid var(--samp-border);
-  border-radius: 12px;
+  border-radius: 14px;
+  border-top: 4px solid #16a34a;
+  background: linear-gradient(160deg, #f0fdf4 0%, #ffffff 70%);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
+.kpi-card:nth-child(1) { border-top-color: #16a34a; background: linear-gradient(160deg, #f0fdf4 0%, #fff 70%); }
+.kpi-card:nth-child(2) { border-top-color: #2563eb; background: linear-gradient(160deg, #eff6ff 0%, #fff 70%); }
+.kpi-card:nth-child(3) { border-top-color: #e11d48; background: linear-gradient(160deg, #fff1f2 0%, #fff 70%); }
+.kpi-card:nth-child(4) { border-top-color: #7c3aed; background: linear-gradient(160deg, #f5f3ff 0%, #fff 70%); }
+.kpi-card:nth-child(5) { border-top-color: #f59e0b; background: linear-gradient(160deg, #fffbeb 0%, #fff 70%); }
+.kpi-card:nth-child(6) { border-top-color: #0891b2; background: linear-gradient(160deg, #ecfeff 0%, #fff 70%); }
 
 .kpi-label {
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--samp-text-secondary);
 }
 
 .kpi-value {
-  font-size: 26px;
-  font-weight: 700;
+  font-size: 32px;
+  font-weight: 800;
   color: var(--samp-text-main);
 }
 .kpi-value.green { color: #16a34a; }
@@ -148,32 +175,58 @@ onMounted(load)
 .kpi-value.orange { color: #f59e0b; }
 
 .kpi-time {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--samp-text-main);
 }
 
 .cat-card {
   margin-bottom: 16px;
+  border-top: 3px solid var(--samp-border);
+}
+
+.cat-card.clickable {
+  cursor: pointer;
+  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+
+.cat-card.clickable:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.1);
+  border-color: var(--el-color-primary);
+}
+
+.cat-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--samp-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-color-primary);
 }
 
 .cat-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .cat-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .cat-name {
+  font-size: 17px;
   font-weight: 700;
   color: var(--samp-text-main);
 }
@@ -188,7 +241,7 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
+  padding: 10px 0;
   border-bottom: 1px dashed var(--samp-border);
 }
 .metric-item:last-child {
@@ -198,14 +251,14 @@ onMounted(load)
 .metric-label {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 8px;
+  font-size: 14px;
   color: var(--samp-text-secondary);
 }
 
 .dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: #16a34a;
 }
@@ -214,17 +267,20 @@ onMounted(load)
 }
 
 .metric-value {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--samp-text-main);
 }
 .metric-value b {
-  font-size: 18px;
+  font-size: 20px;
+}
+.metric-value .warn-text {
+  color: #d97706;
 }
 .metric-value em {
   font-style: normal;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--samp-text-secondary);
-  margin-left: 2px;
+  margin-left: 3px;
 }
 
 .trend-card {
@@ -240,8 +296,8 @@ onMounted(load)
 }
 
 .card-sub {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 13px;
   color: var(--samp-text-secondary);
   font-weight: 400;
 }
@@ -256,13 +312,13 @@ onMounted(load)
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--samp-text-secondary);
 }
 .legend-item i {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
   display: inline-block;
 }
 </style>

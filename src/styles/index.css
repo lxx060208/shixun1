@@ -83,15 +83,15 @@ a {
 
 .page-title {
   margin: 0;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: 0.2px;
   color: var(--samp-text-main);
 }
 
 .page-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
+  margin: 6px 0 0;
+  font-size: 14px;
   color: var(--samp-text-secondary);
 }
 

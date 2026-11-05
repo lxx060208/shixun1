@@ -96,12 +96,19 @@ onMounted(load)
 .page-header { display: flex; align-items: center; justify-content: space-between; }
 
 .metric-card {
-  display: flex; flex-direction: column; gap: 6px; padding: 16px; margin-bottom: 16px;
-  background: #fff; border: 1px solid var(--samp-border); border-radius: 12px;
+  display: flex; flex-direction: column; gap: 8px; padding: 18px 16px; margin-bottom: 16px;
+  background: #fff; border: 1px solid var(--samp-border); border-radius: 14px;
+  border-top: 4px solid #0ea5e9; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
-.m-label { font-size: 12px; color: var(--samp-text-secondary); }
-.m-value { font-size: 24px; font-weight: 700; color: var(--samp-text-main); }
-.m-value em { font-style: normal; font-size: 12px; font-weight: 400; color: var(--samp-text-secondary); margin-left: 3px; }
+.metric-card:nth-child(1) { border-top-color:#0ea5e9; background:linear-gradient(160deg,#ecfeff,#fff 70%); }
+.metric-card:nth-child(2) { border-top-color:#16a34a; background:linear-gradient(160deg,#f0fdf4,#fff 70%); }
+.metric-card:nth-child(3) { border-top-color:#f59e0b; background:linear-gradient(160deg,#fffbeb,#fff 70%); }
+.metric-card:nth-child(4) { border-top-color:#e11d48; background:linear-gradient(160deg,#fff1f2,#fff 70%); }
+.metric-card:nth-child(5) { border-top-color:#0891b2; background:linear-gradient(160deg,#ecfeff,#fff 70%); }
+.metric-card:nth-child(6) { border-top-color:#2563eb; background:linear-gradient(160deg,#eff6ff,#fff 70%); }
+.m-label { font-size: 14px; font-weight: 600; color: var(--samp-text-secondary); }
+.m-value { font-size: 28px; font-weight: 800; color: var(--samp-text-main); }
+.m-value em { font-style: normal; font-size: 13px; font-weight: 500; color: var(--samp-text-secondary); margin-left: 3px; }
 
 .chart-card { margin-bottom: 16px; }
 .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
