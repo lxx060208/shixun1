@@ -1,17 +1,31 @@
-/* 智慧农业综合管理平台 - 全局样式与主题变量 */
+/* 智慧农业综合管理平台 - 全局样式与主题变量（现代浅色后台风） */
 :root {
-  --el-color-primary: #2f9e44;
-  --el-color-primary-light-3: #63b874;
-  --el-color-primary-light-5: #8fcc9b;
-  --el-color-primary-light-7: #b6dfc0;
-  --el-color-primary-light-8: #cdeadd;
-  --el-color-primary-light-9: #e6f4e9;
-  --el-color-primary-dark-2: #267e36;
+  /* 主色：农业绿 */
+  --el-color-primary: #16a34a;
+  --el-color-primary-light-3: #45b06d;
+  --el-color-primary-light-5: #6fc48b;
+  --el-color-primary-light-7: #a4d8b6;
+  --el-color-primary-light-8: #c2e5ce;
+  --el-color-primary-light-9: #e6f5ec;
+  --el-color-primary-dark-2: #12863c;
 
-  --samp-bg: #f2f6f3;
-  --samp-sidebar-bg: #1f3a2d;
-  --samp-sidebar-text: #c9d8ce;
-  --samp-sidebar-active: #2f9e44;
+  /* 布局变量 */
+  --samp-bg: #f5f7fa;
+  --samp-card-bg: #ffffff;
+  --samp-border: #eceef3;
+  --samp-text-main: #1f2329;
+  --samp-text-secondary: #8a919f;
+
+  /* 浅色侧边栏 */
+  --samp-sidebar-bg: #ffffff;
+  --samp-sidebar-text: #5c6470;
+  --samp-sidebar-active-bg: #e6f5ec;
+  --samp-sidebar-active-text: #16a34a;
+
+  /* Element Plus 圆角与卡片规范化 */
+  --el-border-radius-base: 8px;
+  --el-card-border-radius: 14px;
+  --el-card-border-color: #eceef3;
 }
 
 * {
@@ -27,8 +41,8 @@ body,
 }
 
 body {
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-  color: #303133;
+  font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  color: var(--samp-text-main);
   background-color: var(--samp-bg);
   -webkit-font-smoothing: antialiased;
 }
@@ -38,22 +52,52 @@ a {
   color: inherit;
 }
 
+/* 卡片统一：轻阴影、圆角、柔和边框，浅色后台更轻盈 */
+.el-card {
+  border: 1px solid var(--samp-border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.el-card__header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--samp-border);
+  font-weight: 600;
+}
+
+.el-card__body {
+  padding: 20px;
+}
+
+/* 通用页面容器 */
 .page-container {
-  padding: 16px;
+  padding: 8px 8px 24px;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
 .page-title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2d3d;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--samp-text-main);
+}
+
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--samp-text-secondary);
+}
+
+.panel-title {
+  font-weight: 700;
+  color: var(--samp-text-main);
 }
 
 .toolbar {
@@ -66,4 +110,23 @@ a {
 
 .filter-card {
   margin-bottom: 16px;
+}
+
+/* 滚动条柔化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d6dae2;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c2c8d2;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }

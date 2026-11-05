@@ -2,7 +2,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserListApi, saveUserApi, deleteUserApi } from '@/api'
-import { roles, departments } from '@/api/mock'
+import { departments } from '@/api/mock'
+import { roles } from '@/api/db'
 import UserForm from './UserForm.vue'
 
 const loading = ref(false)
