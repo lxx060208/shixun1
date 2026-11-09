@@ -79,6 +79,19 @@ const menus = [
     ],
   },
   {
+    title: '生产农事管理',
+    icon: 'Crop',
+    children: [
+      { path: '/farm/plot', title: '地块档案管理', icon: 'Crop' },
+      { path: '/farm/gis', title: '地块GIS地图', icon: 'MapLocation' },
+      { path: '/farm/plan', title: '种植计划管理', icon: 'Tickets' },
+      { path: '/farm/order', title: '农事工单派单', icon: 'Promotion' },
+      { path: '/farm/record', title: '农事执行打卡与台账', icon: 'EditPen' },
+      { path: '/farm/stock', title: '农资库存管理', icon: 'Box' },
+      { path: '/farm/harvest', title: '采收与产量管理', icon: 'DataAnalysis' },
+    ],
+  },
+  {
     title: '产销对接与订单管理',
     icon: 'ShoppingCart',
     children: [
