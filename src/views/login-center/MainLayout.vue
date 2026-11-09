@@ -102,6 +102,16 @@ const menus = [
       { path: '/sales/customers', title: '客户档案管理', icon: 'UserFilled' },
     ],
   },
+  {
+    title: '农业专家与病虫害知识库',
+    icon: 'Reading',
+    children: [
+      { path: '/knowledge/overview', title: '农业专家知识库总览', icon: 'Reading' },
+      { path: '/knowledge/pests', title: '病虫害知识库', icon: 'Crop' },
+      { path: '/knowledge/pest-plans', title: '病虫害防治方案库', icon: 'FirstAidKit' },
+      { path: '/knowledge/manage', title: '知识库内容管理', icon: 'Management' },
+    ],
+  },
 ]
 
 const activeMenu = computed(() => route.path)
