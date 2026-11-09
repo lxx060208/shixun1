@@ -13,12 +13,17 @@ const collapsed = ref(false)
 const menus = [
   { path: '/dashboard', title: '工作台', icon: 'HomeFilled' },
   {
-    title: '个人中心',
+    title: '登录与个人中心',
     icon: 'User',
     children: [
       { path: '/profile', title: '基本资料', icon: 'User' },
       { path: '/profile/password', title: '修改密码', icon: 'Key' },
       { path: '/profile/notifications', title: '消息通知设置', icon: 'Bell' },
+      { path: '/system/users', title: '用户管理', icon: 'UserFilled' },
+      { path: '/system/roles', title: '角色管理', icon: 'Avatar' },
+      { path: '/system/permission', title: '角色权限配置', icon: 'Lock' },
+      { path: '/system/logs', title: '日志审计与备份', icon: 'Document' },
+      { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding' },
     ],
   },
   {
@@ -31,17 +36,6 @@ const menus = [
       { path: '/data/water-fertilizer', title: '水肥与产量统计', icon: 'Pouring' },
       { path: '/data/device-dashboard', title: '设备运维大屏', icon: 'Monitor' },
       { path: '/data/alarm-farm', title: '告警与农事进度', icon: 'BellFilled' },
-    ],
-  },
-  {
-    title: '系统管理',
-    icon: 'Setting',
-    children: [
-      { path: '/system/users', title: '用户管理', icon: 'UserFilled' },
-      { path: '/system/roles', title: '角色管理', icon: 'Avatar' },
-      { path: '/system/permission', title: '角色权限配置', icon: 'Lock' },
-      { path: '/system/logs', title: '日志审计', icon: 'Document' },
-      { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding' },
     ],
   },
   {
