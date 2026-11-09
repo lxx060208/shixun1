@@ -58,6 +58,11 @@ import {
   salesOrders,
   salesShipments,
   salesCustomers,
+  knowledgeFields,
+  knowledgeCategories,
+  knowledgeExperts,
+  knowledgeArticles,
+  pestLibrary,
 } from './mock'
 
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -1151,5 +1156,327 @@ export async function getSalesStatsApi() {
     hotProducts,
     categoryDist: Object.entries(categoryMap).map(([name, value]) => ({ name, value })),
     parkDist: Object.entries(parkMap).map(([name, value]) => ({ name, value })),
+  }
+}
+
+/* ------------------------- 农业专家与病虫害知识库 ------------------------- */
+const findKnowledgeExpert = (id) => knowledgeExperts.find((e) => e.id === id)
+
+const decorateExpert = (expert) => {
+  const published = knowledgeArticles.filter((a) => a.expertId === expert.id && a.status === '已发布')
+  return {
+    ...expert,
+    articleCount: published.length,
+    articleTotal: knowledgeArticles.filter((a) => a.expertId === expert.id).length,
+    totalViews: published.reduce((sum, a) => sum + a.views, 0),
+  }
+}
+
+const decorateArticle = (article) => {
+  const expert = findKnowledgeExpert(article.expertId)
+  return {
+    ...article,
+    tags: article.tags.slice(),
+    author: expert ? expert.name : '平台编辑',
+    authorOrg: expert ? expert.organization : '',
+    authorTitle: expert ? expert.title : '',
+  }
+}
+
+export async function getKnowledgeOverviewApi() {
+  await delay()
+  const published = knowledgeArticles.filter((a) => a.status === '已发布')
+  const experts = knowledgeExperts.filter((e) => e.status === '已入驻').map(decorateExpert)
+  const categories = knowledgeCategories.map((c) => ({
+    ...c,
+    count: published.filter((a) => a.category === c.name).length,
+  }))
+  return {
+    stats: {
+      expertCount: experts.length,
+      articleCount: published.length,
+      pestCount: pestLibrary.length,
+      planCount: pestLibrary.filter((p) => p.plan).length,
+      totalViews: published.reduce((sum, a) => sum + a.views, 0),
+    },
+    fields: knowledgeFields
+      .map((name) => ({ name, count: experts.filter((e) => e.field === name).length }))
+      .filter((i) => i.count > 0),
+    categories,
+    categoryDist: categories.filter((c) => c.count > 0).map((c) => ({ name: c.name, value: c.count })),
+    experts,
+    latestArticles: published
+      .slice()
+      .sort((a, b) => (a.publishTime > b.publishTime ? -1 : 1))
+      .slice(0, 5)
+      .map(decorateArticle),
+    hotArticles: published
+      .slice()
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 5)
+      .map(decorateArticle),
+  }
+}
+
+export async function getKnowledgeExpertsApi(params = {}) {
+  await delay()
+  const { keyword = '', field = '', status = '', page = 1, pageSize = 10 } = params
+  const kw = keyword.trim()
+  const list = knowledgeExperts
+    .map(decorateExpert)
+    .filter((e) => {
+      if (field && e.field !== field) return false
+      if (status && e.status !== status) return false
+      if (kw) {
+        const text = `${e.id} ${e.name} ${e.title} ${e.field} ${e.organization} ${e.specialty}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.status === b.status ? (a.joinTime > b.joinTime ? -1 : 1) : a.status === '已入驻' ? -1 : 1))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  return {
+    list: list.slice(start, start + pageSize),
+    total,
+    fields: knowledgeFields.slice(),
+    pendingCount: knowledgeExperts.filter((e) => e.status === '待审核').length,
+  }
+}
+
+export async function saveKnowledgeExpertApi(payload) {
+  await delay()
+  const { id, ...data } = payload
+  if (id) {
+    const idx = knowledgeExperts.findIndex((e) => e.id === id)
+    if (idx === -1) throw new Error('专家不存在')
+    knowledgeExperts[idx] = { ...knowledgeExperts[idx], ...data }
+    return decorateExpert(knowledgeExperts[idx])
+  }
+  const max = knowledgeExperts.reduce((m, e) => Math.max(m, Number(e.id.slice(1)) || 0), 0)
+  const record = {
+    avatar: '',
+    status: '待审核',
+    years: 5,
+    specialty: '',
+    intro: '',
+    ...data,
+    id: `E${String(max + 1).padStart(3, '0')}`,
+    joinTime: stampNow(),
+  }
+  knowledgeExperts.push(record)
+  return decorateExpert(record)
+}
+
+export async function auditKnowledgeExpertApi(id, action) {
+  await delay()
+  const expert = findKnowledgeExpert(id)
+  if (!expert) throw new Error('专家不存在')
+  if (action === 'approve') {
+    expert.status = '已入驻'
+    expert.joinTime = stampNow()
+  } else if (action === 'reject') {
+    expert.status = '已驳回'
+  } else {
+    throw new Error('不支持的审核动作')
+  }
+  return decorateExpert(expert)
+}
+
+export async function deleteKnowledgeExpertApi(id) {
+  await delay()
+  const idx = knowledgeExperts.findIndex((e) => e.id === id)
+  if (idx === -1) throw new Error('专家不存在')
+  if (knowledgeArticles.some((a) => a.expertId === id)) {
+    throw new Error('该专家已关联知识文章，无法删除')
+  }
+  knowledgeExperts.splice(idx, 1)
+  return { success: true }
+}
+
+export async function getKnowledgeArticlesApi(params = {}) {
+  await delay()
+  const { keyword = '', category = '', status = '', page = 1, pageSize = 10 } = params
+  const kw = keyword.trim()
+  const list = knowledgeArticles
+    .map(decorateArticle)
+    .filter((a) => {
+      if (category && a.category !== category) return false
+      if (status && a.status !== status) return false
+      if (kw) {
+        const text = `${a.id} ${a.title} ${a.category} ${a.author} ${a.tags.join(' ')}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.publishTime > b.publishTime ? -1 : 1))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  return {
+    list: list.slice(start, start + pageSize),
+    total,
+    categories: knowledgeCategories.map((c) => c.name),
+    stats: {
+      published: knowledgeArticles.filter((a) => a.status === '已发布').length,
+      pending: knowledgeArticles.filter((a) => a.status === '待审核').length,
+      draft: knowledgeArticles.filter((a) => a.status === '草稿').length,
+    },
+  }
+}
+
+export async function saveKnowledgeArticleApi(payload) {
+  await delay()
+  const { id, ...data } = payload
+  if (id) {
+    const idx = knowledgeArticles.findIndex((a) => a.id === id)
+    if (idx === -1) throw new Error('知识条目不存在')
+    const before = { ...knowledgeArticles[idx] }
+    knowledgeArticles[idx] = { ...before, ...data }
+    return decorateArticle(knowledgeArticles[idx])
+  }
+  const max = knowledgeArticles.reduce((m, a) => Math.max(m, Number(a.id.slice(1)) || 0), 0)
+  const record = {
+    tags: [],
+    recommend: false,
+    auditRemark: '',
+    ...data,
+    id: `A${String(max + 1).padStart(3, '0')}`,
+    views: 0,
+    status: data.status || '草稿',
+    publishTime: stampNow(),
+  }
+  knowledgeArticles.unshift(record)
+  return decorateArticle(record)
+}
+
+export async function auditKnowledgeArticleApi(id, action, remark = '') {
+  await delay()
+  const article = knowledgeArticles.find((a) => a.id === id)
+  if (!article) throw new Error('知识条目不存在')
+  if (action === 'publish') {
+    article.status = '已发布'
+    article.publishTime = stampNow()
+    article.auditRemark = remark || '审核通过，已发布'
+  } else if (action === 'reject') {
+    article.status = '草稿'
+    article.auditRemark = remark || '审核退回，请修改后重新提交'
+  } else {
+    throw new Error('不支持的审核动作')
+  }
+  return decorateArticle(article)
+}
+
+export async function deleteKnowledgeArticleApi(id) {
+  await delay()
+  const idx = knowledgeArticles.findIndex((a) => a.id === id)
+  if (idx === -1) throw new Error('知识条目不存在')
+  knowledgeArticles.splice(idx, 1)
+  return { success: true }
+}
+
+export async function getKnowledgeCategoriesApi() {
+  await delay()
+  return knowledgeCategories.map((c) => ({
+    ...c,
+    articleCount: knowledgeArticles.filter((a) => a.category === c.name).length,
+  }))
+}
+
+export async function saveKnowledgeCategoryApi(payload) {
+  await delay()
+  const name = (payload.name || '').trim()
+  if (!name) throw new Error('请输入分类名称')
+  if (knowledgeCategories.some((c) => c.name === name && c.id !== payload.id)) {
+    throw new Error('该分类名称已存在')
+  }
+  if (payload.id) {
+    const idx = knowledgeCategories.findIndex((c) => c.id === payload.id)
+    if (idx === -1) throw new Error('分类不存在')
+    const oldName = knowledgeCategories[idx].name
+    knowledgeCategories[idx] = { ...knowledgeCategories[idx], ...payload, name }
+    if (oldName !== name) {
+      knowledgeArticles.forEach((a) => {
+        if (a.category === oldName) a.category = name
+      })
+    }
+    return { ...knowledgeCategories[idx] }
+  }
+  const max = knowledgeCategories.reduce((m, c) => Math.max(m, Number(c.id.slice(1)) || 0), 0)
+  const record = {
+    description: '',
+    ...payload,
+    name,
+    id: `K${String(max + 1).padStart(2, '0')}`,
+  }
+  knowledgeCategories.push(record)
+  return { ...record }
+}
+
+export async function deleteKnowledgeCategoryApi(id) {
+  await delay()
+  const idx = knowledgeCategories.findIndex((c) => c.id === id)
+  if (idx === -1) throw new Error('分类不存在')
+  const name = knowledgeCategories[idx].name
+  if (knowledgeArticles.some((a) => a.category === name)) {
+    throw new Error('该分类下仍有知识条目，无法删除')
+  }
+  knowledgeCategories.splice(idx, 1)
+  return { success: true }
+}
+
+export async function getPestsApi(params = {}) {
+  await delay()
+  const { keyword = '', type = '', crop = '', severity = '', page = 1, pageSize = 8 } = params
+  const kw = keyword.trim()
+  const list = pestLibrary
+    .filter((p) => {
+      if (type && p.type !== type) return false
+      if (crop && !p.crops.includes(crop)) return false
+      if (severity && p.severity !== severity) return false
+      if (kw) {
+        const text = `${p.id} ${p.name} ${p.alias} ${p.crops} ${p.symptom}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .map(({ plan, ...rest }) => ({ ...rest }))
+    .sort((a, b) => (a.type === b.type ? (a.severity === b.severity ? 0 : a.severity === '高' ? -1 : 1) : a.type === '病害' ? -1 : 1))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  const crops = Array.from(new Set(pestLibrary.flatMap((p) => p.crops.split('、'))))
+  return {
+    list: list.slice(start, start + pageSize),
+    total,
+    crops,
+    diseaseCount: pestLibrary.filter((p) => p.type === '病害').length,
+    insectCount: pestLibrary.filter((p) => p.type === '虫害').length,
+  }
+}
+
+export async function getPestPlansApi(params = {}) {
+  await delay()
+  const { keyword = '', type = '', page = 1, pageSize = 10 } = params
+  const kw = keyword.trim()
+  const list = pestLibrary
+    .filter((p) => {
+      if (type && p.type !== type) return false
+      if (kw) {
+        const text = `${p.id} ${p.name} ${p.alias} ${p.crops} ${p.plan.principle}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .map((p) => JSON.parse(JSON.stringify(p)))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  return {
+    list: list.slice(start, start + pageSize),
+    total,
+    stats: {
+      total: pestLibrary.length,
+      disease: pestLibrary.filter((p) => p.type === '病害').length,
+      insect: pestLibrary.filter((p) => p.type === '虫害').length,
+      drugs: pestLibrary.reduce((sum, p) => sum + p.plan.drugs.length, 0),
+    },
   }
 }
