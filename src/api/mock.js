@@ -1617,3 +1617,244 @@ const buildSalesShipment = (order) => {
 }
 
 export const salesShipments = salesOrders.filter((o) => o.logisticsNo).map(buildSalesShipment)
+
+/* ==================== 生产农事管理模块 ==================== */
+export const farmCrops = ['水稻', '番茄', '黄瓜', '生菜', '草莓', '葡萄', '柑橘', '桃', '李', '西兰花', '香葱', '苹果', '梨']
+
+export const farmSoilTypes = ['沙土', '壤土', '黏土']
+
+export const farmOperationTypes = ['播种', '移栽', '施肥', '打药', '除草', '采收']
+
+export const farmPlotNameList = [
+  'A-01 大田', 'A-02 蔬菜大棚区', 'B-01 葡萄园', 'B-02 草莓园', 'Q-01 叶菜区', 'Q-02 番茄区',
+  'Q-03 黄瓜区', 'Q-04 育苗区', 'H-01 柑橘园', 'H-02 桃园', 'H-03 李园', 'H-04 葡萄园',
+]
+
+export const farmers = [
+  { id: 1, name: '王建国', phone: '13800000002', park: '南山智慧农业示范园' },
+  { id: 2, name: '陈农艺', phone: '13800000005', park: '南山智慧农业示范园' },
+  { id: 3, name: '刘星鑫', phone: '13800000006', park: '清水有机蔬菜基地' },
+  { id: 4, name: '赵小敏', phone: '13800000004', park: '花溪生态果园' },
+  { id: 5, name: '周运维', phone: '13800000007', park: '南山智慧农业示范园' },
+]
+
+export const farmPlots = [
+  { id: 1, plotCode: 'A-01', name: 'A-01 大田', area: 120, crop: '水稻', location: '南山智慧农业示范园', soilType: '壤土', owner: '王建国', status: 1, coverImage: '', createTime: '2026-09-01 09:00:00' },
+  { id: 2, plotCode: 'A-02', name: 'A-02 蔬菜大棚区', area: 180, crop: '番茄', location: '南山智慧农业示范园', soilType: '壤土', owner: '王建国', status: 1, coverImage: '', createTime: '2026-09-01 09:10:00' },
+  { id: 3, plotCode: 'B-01', name: 'B-01 葡萄园', area: 200, crop: '葡萄', location: '南山智慧农业示范园', soilType: '沙土', owner: '陈农艺', status: 1, coverImage: '', createTime: '2026-09-01 09:20:00' },
+  { id: 4, plotCode: 'B-02', name: 'B-02 草莓园', area: 120, crop: '草莓', location: '南山智慧农业示范园', soilType: '沙土', owner: '陈农艺', status: 1, coverImage: '', createTime: '2026-09-01 09:30:00' },
+  { id: 5, plotCode: 'Q-01', name: 'Q-01 叶菜区', area: 126, crop: '生菜', location: '清水有机蔬菜基地', soilType: '壤土', owner: '刘星鑫', status: 1, coverImage: '', createTime: '2026-09-02 10:00:00' },
+  { id: 6, plotCode: 'Q-02', name: 'Q-02 番茄区', area: 110, crop: '番茄', location: '清水有机蔬菜基地', soilType: '壤土', owner: '刘星鑫', status: 1, coverImage: '', createTime: '2026-09-02 10:10:00' },
+  { id: 7, plotCode: 'Q-03', name: 'Q-03 黄瓜区', area: 100, crop: '黄瓜', location: '清水有机蔬菜基地', soilType: '黏土', owner: '刘星鑫', status: 0, coverImage: '', createTime: '2026-09-02 10:20:00' },
+  { id: 8, plotCode: 'H-01', name: 'H-01 柑橘园', area: 90, crop: '柑橘', location: '花溪生态果园', soilType: '沙土', owner: '赵小敏', status: 1, coverImage: '', createTime: '2026-09-03 11:00:00' },
+  { id: 9, plotCode: 'H-04', name: 'H-04 葡萄园', area: 40, crop: '葡萄', location: '花溪生态果园', soilType: '壤土', owner: '赵小敏', status: 0, coverImage: '', createTime: '2026-09-03 11:10:00' },
+]
+
+export const farmPlantPlans = [
+  { id: 1, planName: '2026 秋播水稻种植计划', plot: 'A-01 大田', crop: '水稻', operationType: '播种', startDate: '2026-11-08', endDate: '2026-11-15', executor: '王建国', status: '进行中', createTime: '2026-11-01 08:30:00' },
+  { id: 2, planName: '番茄幼苗移栽计划', plot: 'A-02 蔬菜大棚区', crop: '番茄', operationType: '移栽', startDate: '2026-11-10', endDate: '2026-11-12', executor: '陈农艺', status: '未开始', createTime: '2026-11-02 09:10:00' },
+  { id: 3, planName: '草莓膨果期追肥计划', plot: 'B-02 草莓园', crop: '草莓', operationType: '施肥', startDate: '2026-11-06', endDate: '2026-11-08', executor: '陈农艺', status: '进行中', createTime: '2026-11-03 10:00:00' },
+  { id: 4, planName: '葡萄霜霉病防治打药', plot: 'B-01 葡萄园', crop: '葡萄', operationType: '打药', startDate: '2026-11-09', endDate: '2026-11-10', executor: '周运维', status: '未开始', createTime: '2026-11-03 14:20:00' },
+  { id: 5, planName: '生菜定植后除草作业', plot: 'Q-01 叶菜区', crop: '生菜', operationType: '除草', startDate: '2026-11-04', endDate: '2026-11-05', executor: '刘星鑫', status: '已完成', createTime: '2026-11-03 15:30:00' },
+  { id: 6, planName: '水稻成熟期采收计划', plot: 'A-01 大田', crop: '水稻', operationType: '采收', startDate: '2026-11-20', endDate: '2026-11-28', executor: '王建国', status: '未开始', createTime: '2026-11-04 09:00:00' },
+]
+
+export const farmWorkOrders = [
+  { id: 1, orderNo: 'GD2026110501', title: '水稻收割收尾', plot: 'A-01 大田', taskType: '采收', assignee: '', deadline: '2026-11-08', status: '待派单', createTime: '2026-11-05 08:20:00' },
+  { id: 2, orderNo: 'GD2026110502', title: '番茄整枝打杈', plot: 'A-02 蔬菜大棚区', taskType: '打药', assignee: '陈农艺', deadline: '2026-11-09', status: '已派单', createTime: '2026-11-05 08:35:00' },
+  { id: 3, orderNo: 'GD2026110503', title: '草莓膨果期追肥', plot: 'B-02 草莓园', taskType: '施肥', assignee: '陈农艺', deadline: '2026-11-07', status: '进行中', createTime: '2026-11-05 09:00:00' },
+  { id: 4, orderNo: 'GD2026110504', title: '果园病虫害巡查', plot: 'H-01 柑橘园', taskType: '打药', assignee: '赵小敏', deadline: '2026-11-06', status: '进行中', createTime: '2026-11-05 09:15:00' },
+  { id: 5, orderNo: 'GD2026110401', title: '生菜定植', plot: 'Q-01 叶菜区', taskType: '移栽', assignee: '刘星鑫', deadline: '2026-11-05', status: '已完成', createTime: '2026-11-04 10:00:00' },
+  { id: 6, orderNo: 'GD2026110506', title: '黄瓜成熟采收', plot: 'Q-03 黄瓜区', taskType: '采收', assignee: '', deadline: '2026-11-11', status: '待派单', createTime: '2026-11-05 10:30:00' },
+]
+
+export const farmRecords = [
+  { id: 1, orderNo: 'GD2026110503', plot: 'B-02 草莓园', taskType: '施肥', worker: '陈农艺', workHours: 3.5, materials: '草莓专用水溶肥 12kg', images: [], recordTime: '2026-11-05 14:20:00' },
+  { id: 2, orderNo: 'GD2026110504', plot: 'H-01 柑橘园', taskType: '打药', worker: '赵小敏', workHours: 4, materials: '高效氯氟氰菊酯 2 瓶', images: [], recordTime: '2026-11-05 13:40:00' },
+  { id: 3, orderNo: 'GD2026110401', plot: 'Q-01 叶菜区', taskType: '移栽', worker: '刘星鑫', workHours: 6, materials: '生菜苗 2400 株', images: [], recordTime: '2026-11-04 17:10:00' },
+  { id: 4, orderNo: 'GD2026110501', plot: 'A-01 大田', taskType: '采收', worker: '王建国', workHours: 8, materials: '收割机 1 台 / 编织袋 200 个', images: [], recordTime: '2026-11-05 11:05:00' },
+  { id: 5, orderNo: 'GD2026110502', plot: 'A-02 蔬菜大棚区', taskType: '打药', worker: '陈农艺', workHours: 2.5, materials: '生物制剂 1.5kg', images: [], recordTime: '2026-11-05 15:00:00' },
+]
+
+export const farmMaterials = [
+  { id: 1, name: '复合肥（15-15-15）', category: '肥料', spec: '50kg/袋', unit: '袋', stock: 120, threshold: 50, location: '南山农资库', updateTime: '2026-11-04 09:00:00' },
+  { id: 2, name: '尿素', category: '肥料', spec: '40kg/袋', unit: '袋', stock: 40, threshold: 60, location: '南山农资库', updateTime: '2026-11-03 10:00:00' },
+  { id: 3, name: '有机肥', category: '肥料', spec: '25kg/袋', unit: '袋', stock: 300, threshold: 100, location: '清水农资库', updateTime: '2026-11-04 08:30:00' },
+  { id: 4, name: '高效氯氟氰菊酯', category: '农药', spec: '500ml/瓶', unit: '瓶', stock: 8, threshold: 10, location: '南山农资库', updateTime: '2026-11-05 09:20:00' },
+  { id: 5, name: '番茄种子', category: '种子', spec: '1000粒/袋', unit: '袋', stock: 60, threshold: 20, location: '清水农资库', updateTime: '2026-11-02 16:00:00' },
+  { id: 6, name: '水稻种子（川优）', category: '种子', spec: '10kg/袋', unit: '袋', stock: 200, threshold: 80, location: '南山农资库', updateTime: '2026-10-30 14:00:00' },
+  { id: 7, name: '滴灌带', category: '其他', spec: '100m/卷', unit: '卷', stock: 15, threshold: 5, location: '花溪农资库', updateTime: '2026-11-01 11:00:00' },
+]
+
+export const farmPurchases = [
+  { id: 1, purchaseNo: 'CG2026110401', material: '复合肥（15-15-15）', supplier: '重庆农资集团', quantity: 60, unit: '袋', unitPrice: 180, amount: 10800, purchaser: '王建国', purchaseTime: '2026-11-04 09:00:00' },
+  { id: 2, purchaseNo: 'CG2026110301', material: '有机肥', supplier: '渝丰有机肥厂', quantity: 120, unit: '袋', unitPrice: 35, amount: 4200, purchaser: '刘星鑫', purchaseTime: '2026-11-03 10:00:00' },
+  { id: 3, purchaseNo: 'CG2026110501', material: '高效氯氟氰菊酯', supplier: '绿源农化', quantity: 12, unit: '瓶', unitPrice: 28, amount: 336, purchaser: '陈农艺', purchaseTime: '2026-11-05 09:20:00' },
+  { id: 4, purchaseNo: 'CG2026110201', material: '滴灌带', supplier: '汇农节水器材', quantity: 20, unit: '卷', unitPrice: 95, amount: 1900, purchaser: '赵小敏', purchaseTime: '2026-11-02 11:00:00' },
+  { id: 5, purchaseNo: 'CG2026103001', material: '水稻种子（川优）', supplier: '重庆农资集团', quantity: 80, unit: '袋', unitPrice: 45, amount: 3600, purchaser: '王建国', purchaseTime: '2026-10-30 14:00:00' },
+]
+
+export const farmHarvestBatches = [
+  { id: 1, batchNo: 'SH2026110501', plot: 'A-01 大田', crop: '水稻', harvestDate: '2026-11-05', gradeA: 3200, gradeB: 6800, gradeC: 2500, createTime: '2026-11-05 16:00:00' },
+  { id: 2, batchNo: 'SH2026110402', plot: 'Q-01 叶菜区', crop: '生菜', harvestDate: '2026-11-04', gradeA: 980, gradeB: 1420, gradeC: 360, createTime: '2026-11-04 15:30:00' },
+  { id: 3, batchNo: 'SH2026110303', plot: 'A-02 蔬菜大棚区', crop: '番茄', harvestDate: '2026-11-03', gradeA: 1500, gradeB: 2100, gradeC: 400, createTime: '2026-11-03 17:10:00' },
+  { id: 4, batchNo: 'SH2026110204', plot: 'B-01 葡萄园', crop: '葡萄', harvestDate: '2026-11-02', gradeA: 2100, gradeB: 1800, gradeC: 120, createTime: '2026-11-02 16:40:00' },
+  { id: 5, batchNo: 'SH2026110105', plot: 'B-02 草莓园', crop: '草莓', harvestDate: '2026-11-01', gradeA: 360, gradeB: 520, gradeC: 60, createTime: '2026-11-01 14:20:00' },
+  { id: 6, batchNo: 'SH2026103006', plot: 'Q-03 黄瓜区', crop: '黄瓜', harvestDate: '2026-10-30', gradeA: 1200, gradeB: 1800, gradeC: 300, createTime: '2026-10-30 15:00:00' },
+]
+
+/* ==================== 农业专家与病虫害知识库模块 ==================== */
+export const expertFields = ['植物保护', '作物栽培', '土壤肥料', '设施园艺', '农产品质量安全']
+
+export const knowledgeExperts = [
+  { id: 1, name: '罗永清', title: '高级农艺师', field: '植物保护', organization: '西南大学植物保护学院', years: 26, specialty: '水稻稻瘟病、油菜菌核病绿色防控', intro: '长期从事作物病虫害绿色防控技术研究，主持省部级课题 10 余项。', phone: '13900000001', email: 'luoyq@samp.com', status: '已入驻', articleCount: 3, totalViews: 8620, joinTime: '2026-09-05 09:20:00' },
+  { id: 2, name: '苏雨桐', title: '教授', field: '作物栽培', organization: '中国农业科学院作物科学研究所', years: 20, specialty: '水稻高产高效栽培、机械化种植', intro: '从事水稻栽培生理与高产创建研究，发布多项地方标准。', phone: '13900000002', email: 'suyt@samp.com', status: '已入驻', articleCount: 2, totalViews: 7150, joinTime: '2026-09-10 10:00:00' },
+  { id: 3, name: '何立群', title: '研究员', field: '土壤肥料', organization: '重庆农业科学院土壤肥料研究所', years: 22, specialty: '测土配方施肥、耕地质量提升', intro: '专注作物营养诊断与精准施肥，服务多家现代农业园区。', phone: '13900000003', email: 'helq@samp.com', status: '已入驻', articleCount: 2, totalViews: 5480, joinTime: '2026-09-15 14:30:00' },
+  { id: 4, name: '林婉仪', title: '高级农艺师', field: '设施园艺', organization: '重庆市农业技术推广总站', years: 15, specialty: '设施蔬菜水肥一体化、环境调控', intro: '专注设施大棚蔬菜高效栽培与环境智能调控技术推广。', phone: '13900000004', email: 'linwy@samp.com', status: '待审核', articleCount: 0, totalViews: 0, joinTime: '2026-11-06 16:10:00' },
+  { id: 5, name: '赵康平', title: '副教授', field: '农产品质量安全', organization: '西南大学食品科学学院', years: 12, specialty: '农产品安全检测、质量溯源', intro: '从事农产品质量安全检测与可追溯体系研究。', phone: '13900000005', email: 'zhaokp@samp.com', status: '已入驻', articleCount: 1, totalViews: 3260, joinTime: '2026-09-20 11:00:00' },
+]
+
+export const knowledgeCategories = [
+  { id: 'C-01', name: '土壤肥料', description: '测土配方、土壤改良与肥料施用技术' },
+  { id: 'C-02', name: '种植技术', description: '各类作物的播种、移栽与栽培管理' },
+  { id: 'C-03', name: '植保防治', description: '病虫害识别与绿色综合防治方法' },
+  { id: 'C-04', name: '设施园艺', description: '大棚温室环境调控与水肥一体化' },
+  { id: 'C-05', name: '质量安全', description: '农产品质量安全与检测追溯' },
+]
+
+export const knowledgeArticles = [
+  { id: 'ART20261101001', title: '水稻稻瘟病综合防控技术', category: '植保防治', expertId: 1, summary: '系统介绍稻瘟病的发生规律与绿色防控要点。', content: '稻瘟病是水稻生产中的重要病害之一。应坚持“预防为主、综合防治”，选用抗病品种，合理密植，科学管水，及时清除病株残体。\n\n在发生初期，可选用三环唑、稻瘟灵等药剂进行预防性喷雾，注意轮换用药，避免产生抗药性。', tags: ['水稻', '稻瘟病', '绿色防控'], recommend: true, status: '已发布', publishTime: '2026-11-01 09:00:00', views: 3280, auditRemark: '' },
+  { id: 'ART20261102002', title: '水稻机插秧高产栽培要点', category: '种植技术', expertId: 2, summary: '机插秧育秧、秧田管理与栽插密度控制。', content: '机插秧要求秧苗整齐、根系盘结好。育秧期控制水分，栽前 3-5 天逐步炼苗。\n\n栽插时根据品种特性确定密度，一般行距 30cm、株距 12-14cm，保证基本苗。', tags: ['水稻', '机插秧', '栽培'], recommend: true, status: '已发布', publishTime: '2026-11-02 10:30:00', views: 2450, auditRemark: '' },
+  { id: 'ART20261103003', title: '测土配方施肥技术指南', category: '土壤肥料', expertId: 3, summary: '科学施肥，实现化肥减量增效。', content: '以土壤测试和肥料田间试验为基础，按“缺什么补什么”的原则确定氮磷钾及中微量元素用量。\n\n推广有机肥与无机肥配合施用，提高肥料利用率，减少面源污染。', tags: ['测土配方', '施肥', '减量增效'], recommend: false, status: '已发布', publishTime: '2026-11-03 11:00:00', views: 1980, auditRemark: '' },
+  { id: 'ART20261104004', title: '设施番茄水肥一体化管理', category: '设施园艺', expertId: 4, summary: '番茄不同生育期的水肥协同调控。', content: '根据番茄生育期和土壤墒情制定灌溉制度，生育前期控水促根，结果期均衡供水。\n\n采用滴灌随水施肥，少量多次，可配施水溶性专用肥。', tags: ['番茄', '设施', '水肥一体化'], recommend: true, status: '待审核', publishTime: '', views: 0, auditRemark: '' },
+  { id: 'ART20261105005', title: '农产品质量安全追溯要点', category: '质量安全', expertId: 5, summary: '建立从田间到餐桌的全程追溯链。', content: '以“生产档案 + 二维码”为基础，记录投入品使用、采收、检测等关键环节信息。\n\n实现来源可查、去向可追、责任可究，提升产品公信力。', tags: ['质量安全', '追溯', '检测'], recommend: false, status: '已发布', publishTime: '2026-11-04 09:20:00', views: 1560, auditRemark: '' },
+  { id: 'ART20261106006', title: '油菜菌核病绿色防控', category: '植保防治', expertId: 1, summary: '花期预防，压低菌源基数。', content: '菌核病重在花期预防。开沟排渍、通风透光，清除田间菌核。\n\n花期前可选用菌核净、多菌灵等药剂防治。', tags: ['油菜', '菌核病'], recommend: false, status: '已发布', publishTime: '2026-11-05 15:00:00', views: 890, auditRemark: '' },
+  { id: 'ART20261107007', title: '果园土壤有机质提升实践', category: '土壤肥料', expertId: 3, summary: '增施有机肥，培肥地力。', content: '果园可通过生草栽培、增施腐熟有机肥、秸秆覆盖等方式提升土壤有机质。\n\n同时注意避免过度清耕，保护土壤结构。', tags: ['果园', '土壤有机质'], recommend: false, status: '草稿', publishTime: '', views: 0, auditRemark: '' },
+  { id: 'ART20261108008', title: '蔬菜灰霉病识别与防控', category: '植保防治', expertId: 4, summary: '低温高湿环境下的灰霉病防控。', content: '灰霉病在低温高湿时易发，应控制棚内湿度、及时通风。\n\n选用嘧霉胺、腐霉利等药剂，重点喷施花果部位。', tags: ['蔬菜', '灰霉病'], recommend: false, status: '草稿', publishTime: '', views: 0, auditRemark: '' },
+]
+
+export const knowledgePests = [
+  { id: 'P-01', name: '稻瘟病', alias: '火烧瘟、苗瘟', type: '病害', crops: '水稻', severity: '高', season: '6-9 月', region: '南山园区 A 区', feature: '分苗瘟、叶瘟、穗颈瘟等多种类型，穗颈瘟危害最重。', symptom: '叶片出现梭形病斑，边缘褐色、中央灰白，湿度大时有灰绿色霉层。', rule: '病菌以分生孢子和菌丝在病稻草、种子上越冬，借风雨传播，高温高湿易流行。' },
+  { id: 'P-02', name: '油菜菌核病', alias: '白秆病', type: '病害', crops: '油菜', severity: '高', season: '3-5 月', region: '南山园区 B 区', feature: '茎秆下部发病，表皮易开裂，后期形成黑色鼠粪状菌核。', symptom: '茎基部出现水渍状病斑，其上可见白色絮状菌丝，后期茎秆中空。', rule: '以菌核在土壤、病残体和种子中越冬，花期阴雨多湿发病重。' },
+  { id: 'P-03', name: '番茄晚疫病', alias: '疫病', type: '病害', crops: '番茄、马铃薯', severity: '高', season: '5-10 月', region: 'A-02 蔬菜大棚区', feature: '低温高湿、昼夜温差大时暴发，蔓延迅速。', symptom: '叶片出现水渍状暗绿色病斑，果实形成褐色云纹斑。', rule: '病菌以菌丝在病残体或种薯种苗上越冬，借风雨传播。' },
+  { id: 'P-04', name: '草莓灰霉病', alias: '烂果病', type: '病害', crops: '草莓', severity: '中', season: '2-5 月', region: 'B-02 草莓园', feature: '主要危害花和果实，果实腐烂软化。', symptom: '果实出现水渍状褐斑，表面密生灰色霉层。', rule: '以菌丝和分生孢子越冬，低温阴雨、密植通风不良时发生重。' },
+  { id: 'P-05', name: '稻纵卷叶螟', alias: '卷叶虫', type: '虫害', crops: '水稻', severity: '中', season: '7-9 月', region: '南山园区 A 区', feature: '幼虫吐丝卷叶取食叶肉，形成白条斑。', symptom: '叶片被卷成筒状，叶肉被吃成白斑，严重时稻田白叶连片。', rule: '成虫具迁飞性，多雨高湿、嫩绿茂密稻田发生重。' },
+  { id: 'P-06', name: '蚜虫', alias: '腻虫', type: '虫害', crops: '番茄、黄瓜、蔬菜', severity: '中', season: '3-10 月', region: 'Q-02 番茄区', feature: '群集嫩叶、嫩茎吸食汁液，分泌蜜露。', symptom: '叶片皱缩发黄，植株生长受阻，可传播多种病毒病。', rule: '以孤雌生殖繁殖，高温干旱条件下繁殖迅速。' },
+  { id: 'P-07', name: '柑橘红蜘蛛', alias: '柑橘全爪螨', type: '虫害', crops: '柑橘', severity: '中', season: '4-10 月', region: 'H-01 柑橘园', feature: '群集中片背面吸食汁液，喜高温干燥。', symptom: '叶片出现灰白小点，严重时全叶灰白失绿、落叶。', rule: '以卵和成螨越冬，高温干旱、用药不当导致天敌减少时大发生。' },
+  { id: 'P-08', name: '小菜蛾', alias: '菜蛾', type: '虫害', crops: '甘蓝、白菜、西兰花', severity: '低', season: '4-10 月', region: 'Q-01 叶菜区', feature: '幼虫取食叶肉，留下表皮，俗称“开天窗”。', symptom: '叶片被啃食成孔洞或缺刻，仅留表皮和叶脉。', rule: '世代重叠，抗药性强，提倡物理、生物防治相结合。' },
+]
+
+export const knowledgePlans = [
+  {
+    id: 'P-01', name: '稻瘟病', alias: '火烧瘟、苗瘟', type: '病害', crops: '水稻', severity: '高', season: '6-9 月', region: '南山园区 A 区',
+    plan: {
+      principle: '以选用抗病品种和健身栽培为基础，关键时期（分蘖盛期、破口期、齐穗期）化学预防为重点。',
+      agri: '选用抗病品种；合理密植、氮磷钾配施；浅水勤灌，适时晒田；及时处理带病稻草。',
+      physical: '利用频振式杀虫灯与田间诱虫板控制传播媒介，减少初侵染源。',
+      biological: '喷施枯草芽孢杆菌、春雷霉素等生物制剂进行预防。',
+      drugs: [
+        { name: '75% 三环唑可湿性粉剂', dosage: '20-25g/亩，兑水 30kg 均匀喷雾', interval: '安全间隔期 21 天' },
+        { name: '2% 春雷霉素水剂', dosage: '100-130ml/亩，兑水 30kg 喷雾', interval: '安全间隔期 7 天' },
+      ],
+      note: '发病后应控制氮肥、增施磷钾肥；避开雨天施药，药后 4 小时内遇雨需补喷。',
+    },
+  },
+  {
+    id: 'P-02', name: '油菜菌核病', alias: '白秆病', type: '病害', crops: '油菜', severity: '高', season: '3-5 月', region: '南山园区 B 区',
+    plan: {
+      principle: '压低菌源基数，改善田间小气候，花期前抓住关键期用药预防。',
+      agri: '水旱轮作；开沟排渍、降低田间湿度；及时清除病残体并集中处理。',
+      physical: '采用遮雨栽培、通风管理，减少菌核萌发与侵染机会。',
+      biological: '施用木霉菌等拮抗微生物，抑制菌核萌发。',
+      drugs: [
+        { name: '40% 菌核净可湿性粉剂', dosage: '100-150g/亩，兑水 40kg 喷雾', interval: '安全间隔期 14 天' },
+        { name: '50% 多菌灵可湿性粉剂', dosage: '100g/亩，兑水 40kg 喷雾', interval: '安全间隔期 15 天' },
+      ],
+      note: '重点喷施植株中下部茎秆及分枝部位，避免长期单一用药。',
+    },
+  },
+  {
+    id: 'P-03', name: '番茄晚疫病', alias: '疫病', type: '病害', crops: '番茄、马铃薯', severity: '高', season: '5-10 月', region: 'A-02 蔬菜大棚区',
+    plan: {
+      principle: '以预防为主，加强温湿度调控，发现中心病株立即清除并全田预防。',
+      agri: '选用抗病品种；合理轮作；高垄栽培、膜下滴灌，降低棚内湿度。',
+      physical: '加强通风换气，控制棚内相对湿度在 75% 以下。',
+      biological: '发病前喷施木霉、解淀粉芽孢杆菌等生物菌剂进行保护。',
+      drugs: [
+        { name: '72% 霜脲·锰锌可湿性粉剂', dosage: '600 倍液，兑水喷雾', interval: '安全间隔期 7 天' },
+        { name: '68.75% 氟菌·霜霉威悬浮剂', dosage: '1000 倍液，喷雾', interval: '安全间隔期 10 天' },
+      ],
+      note: '发现病株立即摘除病叶病果并带出棚外；坚持交替用药，防止产生抗药性。',
+    },
+  },
+  {
+    id: 'P-04', name: '草莓灰霉病', alias: '烂果病', type: '病害', crops: '草莓', severity: '中', season: '2-5 月', region: 'B-02 草莓园',
+    plan: {
+      principle: '以防为主，降低湿度、减少伤口，花果期重点保护。',
+      agri: '合理密植，及时摘除病果病叶；地膜覆盖，避免果实接触土壤。',
+      physical: '早晚通风降湿，采用清洁田园、深翻土壤等物理措施。',
+      biological: '应用枯草芽孢杆菌等生防菌进行预防。',
+      drugs: [
+        { name: '50% 嘧霉胺可湿性粉剂', dosage: '800-1000 倍液，喷雾', interval: '安全间隔期 10 天' },
+        { name: '40% 腐霉利可湿性粉剂', dosage: '1500 倍液，喷雾', interval: '安全间隔期 14 天' },
+      ],
+      note: '采收期严格控制用药，必须在安全间隔期后再采收上市。',
+    },
+  },
+  {
+    id: 'P-05', name: '稻纵卷叶螟', alias: '卷叶虫', type: '虫害', crops: '水稻', severity: '中', season: '7-9 月', region: '南山园区 A 区',
+    plan: {
+      principle: '抓住卵孵盛期至低龄幼虫期科学用药，保护利用天敌。',
+      agri: '加强肥水管理，避免偏施氮肥造成贪青徒长；及时落水晒田。',
+      physical: '设置频振式杀虫灯、性诱捕器诱杀成虫。',
+      biological: '释放赤眼蜂寄生卵，喷施苏云金杆菌防治低龄幼虫。',
+      drugs: [
+        { name: '20% 氯虫苯甲酰胺悬浮剂', dosage: '10ml/亩，兑水 30kg 喷雾', interval: '安全间隔期 14 天' },
+        { name: '1.8% 阿维菌素乳油', dosage: '30-40ml/亩，兑水 30kg 喷雾', interval: '安全间隔期 7 天' },
+      ],
+      note: '在卵孵高峰后 1-3 天施药效果最佳，喷药时保持田间浅水层。',
+    },
+  },
+  {
+    id: 'P-06', name: '蚜虫', alias: '腻虫', type: '虫害', crops: '番茄、黄瓜、蔬菜', severity: '中', season: '3-10 月', region: 'Q-02 番茄区',
+    plan: {
+      principle: '早期发现、及时防治，优先采取物理、生物措施。',
+      agri: '及时清除田间及周边杂草，减少虫源；合理施肥避免徒长。',
+      physical: '悬挂黄色粘虫板诱杀有翅蚜，通风口加装防虫网。',
+      biological: '保护瓢虫、草蛉、食蚜蝇等天敌；喷施苦参碱等植物源农药。',
+      drugs: [
+        { name: '10% 吡虫啉可湿性粉剂', dosage: '1000-1500 倍液，喷雾', interval: '安全间隔期 7 天' },
+        { name: '25% 噻虫嗪水分散粒剂', dosage: '3000 倍液，喷雾', interval: '安全间隔期 14 天' },
+      ],
+      note: '蚜虫多群集叶背，施药时务必喷透叶背及嫩梢部位。',
+    },
+  },
+  {
+    id: 'P-07', name: '柑橘红蜘蛛', alias: '柑橘全爪螨', type: '虫害', crops: '柑橘', severity: '中', season: '4-10 月', region: 'H-01 柑橘园',
+    plan: {
+      principle: '保护天敌，挑治为主，避免盲目用药导致螨类大发生。',
+      agri: '加强水肥管理，增强树势；雨后及时排水，降低园内湿度。',
+      physical: '人工释放捕食螨，配合田间喷水冲洗降低虫口密度。',
+      biological: '保护瓢虫、草蛉等天敌，喷施印楝素等生物农药。',
+      drugs: [
+        { name: '24% 螺螨酯悬浮剂', dosage: '4000-5000 倍液，喷雾', interval: '安全间隔期 20 天' },
+        { name: '1.8% 阿维菌素乳油', dosage: '2000 倍液，喷雾', interval: '安全间隔期 7 天' },
+      ],
+      note: '红蜘蛛易产生抗药性，应轮换用药并注重叶背喷施；避免与杀螨谱单一的药剂连续使用。',
+    },
+  },
+  {
+    id: 'P-08', name: '小菜蛾', alias: '菜蛾', type: '虫害', crops: '甘蓝、白菜、西兰花', severity: '低', season: '4-10 月', region: 'Q-01 叶菜区',
+    plan: {
+      principle: '以防为主，避免连续种植十字花科蔬菜，综合运用多种防治手段。',
+      agri: '避免连作，与非十字花科作物轮作；及时清除残株落叶并深翻灭蛹。',
+      physical: '覆盖防虫网、悬挂黑光灯和性诱捕器诱杀成虫。',
+      biological: '喷施苏云金杆菌（Bt）、阿维菌素等生物农药防治幼虫。',
+      drugs: [
+        { name: '5% 甲氨基阿维菌素苯甲酸盐', dosage: '3000 倍液，喷雾', interval: '安全间隔期 7 天' },
+        { name: '苏云金杆菌（Bt）可湿性粉剂', dosage: '1000 倍液，喷雾', interval: '安全间隔期 3 天' },
+      ],
+      note: '小菜蛾世代重叠、抗药性强，切忌长期单一用药，重点防治低龄幼虫。',
+    },
+  },
+]
