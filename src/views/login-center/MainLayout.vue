@@ -67,6 +67,28 @@ const menus = [
       { path: '/control/logs', title: '控制日志与水电', icon: 'Document' },
     ],
   },
+  {
+    title: '告警消息中心',
+    icon: 'BellFilled',
+    children: [
+      { path: '/alarm/realtime', title: '告警实时中心', icon: 'Bell' },
+      { path: '/alarm/process', title: '告警处理流程', icon: 'Connection' },
+      { path: '/alarm/rules', title: '告警规则配置', icon: 'SetUp' },
+      { path: '/alarm/history', title: '告警历史查询', icon: 'Document' },
+      { path: '/alarm/statistics', title: '告警统计分析', icon: 'DataAnalysis' },
+    ],
+  },
+  {
+    title: '产销对接与订单管理',
+    icon: 'ShoppingCart',
+    children: [
+      { path: '/sales/products', title: '农产品上架管理', icon: 'Goods' },
+      { path: '/sales/orders', title: '订单管理', icon: 'Tickets' },
+      { path: '/sales/shipments', title: '发货与物流管理', icon: 'Van' },
+      { path: '/sales/statistics', title: '销售统计', icon: 'TrendCharts' },
+      { path: '/sales/customers', title: '客户档案管理', icon: 'UserFilled' },
+    ],
+  },
 ]
 
 const activeMenu = computed(() => route.path)
