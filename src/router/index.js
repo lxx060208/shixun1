@@ -41,31 +41,31 @@ const routes = [
         path: 'system/users',
         name: 'UserList',
         component: () => import('@/views/login-center/UserList.vue'),
-        meta: { title: '用户管理', icon: 'UserFilled' },
+        meta: { title: '用户管理', icon: 'UserFilled', roles: ['admin'] },
       },
       {
         path: 'system/roles',
         name: 'RoleList',
         component: () => import('@/views/login-center/RoleList.vue'),
-        meta: { title: '角色管理', icon: 'Avatar' },
+        meta: { title: '角色管理', icon: 'Avatar', roles: ['admin'] },
       },
       {
         path: 'system/permission',
         name: 'RolePermission',
         component: () => import('@/views/login-center/RolePermission.vue'),
-        meta: { title: '角色权限配置', icon: 'Lock' },
+        meta: { title: '角色权限配置', icon: 'Lock', roles: ['admin'] },
       },
       {
         path: 'system/logs',
         name: 'LogAudit',
         component: () => import('@/views/login-center/LogAudit.vue'),
-        meta: { title: '日志审计与备份', icon: 'Document' },
+        meta: { title: '日志审计与备份', icon: 'Document', roles: ['admin'] },
       },
       {
         path: 'system/tenants',
         name: 'TenantManage',
         component: () => import('@/views/login-center/TenantManage.vue'),
-        meta: { title: '租户管理', icon: 'OfficeBuilding' },
+        meta: { title: '租户管理', icon: 'OfficeBuilding', roles: ['admin'] },
       },
       {
         path: 'data/overview',
@@ -89,19 +89,19 @@ const routes = [
         path: 'data/water-fertilizer',
         name: 'WaterFertilizerYield',
         component: () => import('@/views/data-display/WaterFertilizerYield.vue'),
-        meta: { title: '水肥与产量统计', icon: 'Pouring' },
+        meta: { title: '水肥与产量统计', icon: 'Pouring', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'data/device-dashboard',
         name: 'DeviceDashboard',
         component: () => import('@/views/data-display/DeviceDashboard.vue'),
-        meta: { title: '设备运维大屏', icon: 'Monitor' },
+        meta: { title: '设备运维大屏', icon: 'Monitor', roles: ['admin', 'operator'] },
       },
       {
         path: 'data/alarm-farm',
         name: 'AlarmFarmPanel',
         component: () => import('@/views/data-display/AlarmFarmPanel.vue'),
-        meta: { title: '告警与农事进度', icon: 'BellFilled' },
+        meta: { title: '告警与农事进度', icon: 'BellFilled', roles: ['manager'] },
       },
       {
         path: 'iot-monitor/overview',
@@ -113,61 +113,61 @@ const routes = [
         path: 'iot-monitor/weather',
         name: 'WeatherMonitor',
         component: () => import('@/views/iot-monitor/WeatherMonitor.vue'),
-        meta: { title: '气象监测', icon: 'MostlyCloudy' },
+        meta: { title: '气象监测', icon: 'MostlyCloudy', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'iot-monitor/soil',
         name: 'SoilMonitor',
         component: () => import('@/views/iot-monitor/SoilMonitor.vue'),
-        meta: { title: '土壤墒情监测', icon: 'Crop' },
+        meta: { title: '土壤墒情监测', icon: 'Crop', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'iot-monitor/water',
         name: 'WaterQuality',
         component: () => import('@/views/iot-monitor/WaterQuality.vue'),
-        meta: { title: '水质监测', icon: 'Pouring' },
+        meta: { title: '水质监测', icon: 'Pouring', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'iot-monitor/video',
         name: 'VideoMonitor',
         component: () => import('@/views/iot-monitor/VideoMonitor.vue'),
-        meta: { title: '视频监控', icon: 'VideoCamera' },
+        meta: { title: '视频监控', icon: 'VideoCamera', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'iot-monitor/collection',
         name: 'CollectionManage',
         component: () => import('@/views/iot-monitor/CollectionManage.vue'),
-        meta: { title: '采集管理', icon: 'SetUp' },
+        meta: { title: '采集管理', icon: 'SetUp', roles: ['admin', 'operator'] },
       },
       {
         path: 'control/manual',
         name: 'ManualControl',
         component: () => import('@/views/control-fertilizer/ManualControl.vue'),
-        meta: { title: '设备手动控制台', icon: 'Switch' },
+        meta: { title: '设备手动控制台', icon: 'Switch', roles: ['manager', 'operator'] },
       },
       {
         path: 'control/strategy',
         name: 'AutoStrategy',
         component: () => import('@/views/control-fertilizer/AutoStrategy.vue'),
-        meta: { title: '自动联动策略配置', icon: 'SetUp' },
+        meta: { title: '自动联动策略配置', icon: 'SetUp', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'control/group',
         name: 'GroupControl',
         component: () => import('@/views/control-fertilizer/GroupControl.vue'),
-        meta: { title: '分组控制', icon: 'Grid' },
+        meta: { title: '分组控制', icon: 'Grid', roles: ['manager', 'operator'] },
       },
       {
         path: 'control/fertilizer',
         name: 'FertilizerControl',
         component: () => import('@/views/control-fertilizer/FertilizerControl.vue'),
-        meta: { title: '水肥配方与一体机控制', icon: 'Pouring' },
+        meta: { title: '水肥配方与一体机控制', icon: 'Pouring', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'control/logs',
         name: 'ControlLog',
         component: () => import('@/views/control-fertilizer/ControlLog.vue'),
-        meta: { title: '控制日志与水电统计', icon: 'Document' },
+        meta: { title: '控制日志与水电统计', icon: 'Document', roles: ['manager', 'operator'] },
       },
       {
         path: 'alarm/realtime',
@@ -179,97 +179,97 @@ const routes = [
         path: 'alarm/process',
         name: 'AlarmProcess',
         component: () => import('@/views/alarm-center/AlarmProcess.vue'),
-        meta: { title: '告警处理流程', icon: 'Connection' },
+        meta: { title: '告警处理流程', icon: 'Connection', roles: ['manager', 'operator'] },
       },
       {
         path: 'alarm/rules',
         name: 'AlarmRule',
         component: () => import('@/views/alarm-center/AlarmRule.vue'),
-        meta: { title: '告警规则配置', icon: 'SetUp' },
+        meta: { title: '告警规则配置', icon: 'SetUp', roles: ['admin', 'manager'] },
       },
       {
         path: 'alarm/history',
         name: 'AlarmHistory',
         component: () => import('@/views/alarm-center/AlarmHistory.vue'),
-        meta: { title: '告警历史查询', icon: 'Document' },
+        meta: { title: '告警历史查询', icon: 'Document', roles: ['manager', 'operator'] },
       },
       {
         path: 'alarm/statistics',
         name: 'AlarmStatistics',
         component: () => import('@/views/alarm-center/AlarmStats.vue'),
-        meta: { title: '告警统计分析', icon: 'DataAnalysis' },
+        meta: { title: '告警统计分析', icon: 'DataAnalysis', roles: ['manager'] },
       },
       {
         path: 'sales/products',
         name: 'SalesProductManage',
         component: () => import('@/views/sales-center/ProductManage.vue'),
-        meta: { title: '农产品上架管理', icon: 'Goods' },
+        meta: { title: '农产品上架管理', icon: 'Goods', roles: ['sales'] },
       },
       {
         path: 'sales/orders',
         name: 'SalesOrderManage',
         component: () => import('@/views/sales-center/OrderManage.vue'),
-        meta: { title: '订单管理', icon: 'Tickets' },
+        meta: { title: '订单管理', icon: 'Tickets', roles: ['sales'] },
       },
       {
         path: 'sales/shipments',
         name: 'SalesShipmentManage',
         component: () => import('@/views/sales-center/ShipmentManage.vue'),
-        meta: { title: '发货与物流管理', icon: 'Van' },
+        meta: { title: '发货与物流管理', icon: 'Van', roles: ['sales'] },
       },
       {
         path: 'sales/statistics',
         name: 'SalesStatistics',
         component: () => import('@/views/sales-center/SalesStatistics.vue'),
-        meta: { title: '销售统计', icon: 'TrendCharts' },
+        meta: { title: '销售统计', icon: 'TrendCharts', roles: ['sales', 'manager'] },
       },
       {
         path: 'sales/customers',
         name: 'SalesCustomerManage',
         component: () => import('@/views/sales-center/CustomerManage.vue'),
-        meta: { title: '客户档案管理', icon: 'UserFilled' },
+        meta: { title: '客户档案管理', icon: 'UserFilled', roles: ['sales'] },
       },
       {
         path: 'farm/plot',
         name: 'FarmPlotArchive',
         component: () => import('@/views/farm-manage/PlotArchive.vue'),
-        meta: { title: '地块档案管理', icon: 'Crop' },
+        meta: { title: '地块档案管理', icon: 'Crop', roles: ['manager'] },
       },
       {
         path: 'farm/gis',
         name: 'FarmPlotGis',
         component: () => import('@/views/farm-manage/PlotGis.vue'),
-        meta: { title: '地块GIS地图', icon: 'MapLocation' },
+        meta: { title: '地块GIS地图', icon: 'MapLocation', roles: ['manager'] },
       },
       {
         path: 'farm/plan',
         name: 'FarmPlantPlan',
         component: () => import('@/views/farm-manage/PlantPlan.vue'),
-        meta: { title: '种植计划管理', icon: 'Tickets' },
+        meta: { title: '种植计划管理', icon: 'Tickets', roles: ['manager', 'agronomist'] },
       },
       {
         path: 'farm/order',
         name: 'FarmFarmOrder',
         component: () => import('@/views/farm-manage/FarmOrder.vue'),
-        meta: { title: '农事工单派单', icon: 'Promotion' },
+        meta: { title: '农事工单派单', icon: 'Promotion', roles: ['manager'] },
       },
       {
         path: 'farm/record',
         name: 'FarmRecord',
         component: () => import('@/views/farm-manage/FarmRecord.vue'),
-        meta: { title: '农事执行打卡与台账', icon: 'EditPen' },
+        meta: { title: '农事执行打卡与台账', icon: 'EditPen', roles: ['manager'] },
       },
       {
         path: 'farm/stock',
         name: 'FarmFertilizerStock',
         component: () => import('@/views/farm-manage/FertilizerStock.vue'),
-        meta: { title: '农资库存管理', icon: 'Box' },
+        meta: { title: '农资库存管理', icon: 'Box', roles: ['manager'] },
       },
       {
         path: 'farm/harvest',
         name: 'FarmHarvestYield',
         component: () => import('@/views/farm-manage/HarvestYield.vue'),
-        meta: { title: '采收与产量管理', icon: 'DataAnalysis' },
+        meta: { title: '采收与产量管理', icon: 'DataAnalysis', roles: ['manager'] },
       },
       {
         path: 'knowledge/overview',
@@ -293,7 +293,7 @@ const routes = [
         path: 'knowledge/manage',
         name: 'KnowledgeManage',
         component: () => import('@/views/knowledge-center/KnowledgeManage.vue'),
-        meta: { title: '知识库内容管理', icon: 'Management' },
+        meta: { title: '知识库内容管理', icon: 'Management', roles: ['manager', 'agronomist'] },
       },
     ],
   },
@@ -305,7 +305,7 @@ const router = createRouter({
   routes,
 })
 
-// 路由守卫：未登录跳转登录页，已登录访问登录页跳转工作台
+// 路由守卫：未登录跳转登录页，已登录访问登录页跳转工作台；校验页面角色权限
 router.beforeEach((to, from, next) => {
   document.title = to.meta.title
     ? `${to.meta.title} - 智慧农业综合管理平台`
@@ -318,6 +318,10 @@ router.beforeEach((to, from, next) => {
   }
   if (!auth.isLoggedIn) {
     return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
+  const role = auth.userInfo?.roleCode
+  if (role !== 'admin' && to.meta.roles && to.meta.roles.length && !to.meta.roles.includes(role)) {
+    return next('/dashboard')
   }
   next()
 })

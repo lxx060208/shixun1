@@ -19,11 +19,11 @@ const menus = [
       { path: '/profile', title: '基本资料', icon: 'User' },
       { path: '/profile/password', title: '修改密码', icon: 'Key' },
       { path: '/profile/notifications', title: '消息通知设置', icon: 'Bell' },
-      { path: '/system/users', title: '用户管理', icon: 'UserFilled' },
-      { path: '/system/roles', title: '角色管理', icon: 'Avatar' },
-      { path: '/system/permission', title: '角色权限配置', icon: 'Lock' },
-      { path: '/system/logs', title: '日志审计与备份', icon: 'Document' },
-      { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding' },
+      { path: '/system/users', title: '用户管理', icon: 'UserFilled', roles: ['admin'] },
+      { path: '/system/roles', title: '角色管理', icon: 'Avatar', roles: ['admin'] },
+      { path: '/system/permission', title: '角色权限配置', icon: 'Lock', roles: ['admin'] },
+      { path: '/system/logs', title: '日志审计与备份', icon: 'Document', roles: ['admin'] },
+      { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding', roles: ['admin'] },
     ],
   },
   {
@@ -33,9 +33,9 @@ const menus = [
       { path: '/data/overview', title: '平台数据总览', icon: 'DataAnalysis' },
       { path: '/data/gis-map', title: 'GIS园区地图', icon: 'MapLocation' },
       { path: '/data/realtime', title: '实时环境数据', icon: 'Odometer' },
-      { path: '/data/water-fertilizer', title: '水肥与产量统计', icon: 'Pouring' },
-      { path: '/data/device-dashboard', title: '设备运维大屏', icon: 'Monitor' },
-      { path: '/data/alarm-farm', title: '告警与农事进度', icon: 'BellFilled' },
+      { path: '/data/water-fertilizer', title: '水肥与产量统计', icon: 'Pouring', roles: ['manager', 'agronomist'] },
+      { path: '/data/device-dashboard', title: '设备运维大屏', icon: 'Monitor', roles: ['admin', 'operator'] },
+      { path: '/data/alarm-farm', title: '告警与农事进度', icon: 'BellFilled', roles: ['manager'] },
     ],
   },
   {
@@ -43,22 +43,22 @@ const menus = [
     icon: 'Odometer',
     children: [
       { path: '/iot-monitor/overview', title: '环境监测总览', icon: 'DataAnalysis' },
-      { path: '/iot-monitor/weather', title: '气象监测', icon: 'MostlyCloudy' },
-      { path: '/iot-monitor/soil', title: '土壤墒情监测', icon: 'Crop' },
-      { path: '/iot-monitor/water', title: '水质监测', icon: 'Pouring' },
-      { path: '/iot-monitor/video', title: '视频监控', icon: 'VideoCamera' },
-      { path: '/iot-monitor/collection', title: '采集管理', icon: 'SetUp' },
+      { path: '/iot-monitor/weather', title: '气象监测', icon: 'MostlyCloudy', roles: ['manager', 'agronomist'] },
+      { path: '/iot-monitor/soil', title: '土壤墒情监测', icon: 'Crop', roles: ['manager', 'agronomist'] },
+      { path: '/iot-monitor/water', title: '水质监测', icon: 'Pouring', roles: ['manager', 'agronomist'] },
+      { path: '/iot-monitor/video', title: '视频监控', icon: 'VideoCamera', roles: ['manager', 'agronomist'] },
+      { path: '/iot-monitor/collection', title: '采集管理', icon: 'SetUp', roles: ['admin', 'operator'] },
     ],
   },
   {
     title: '远程智能控制',
     icon: 'Switch',
     children: [
-      { path: '/control/manual', title: '设备手动控制台', icon: 'Switch' },
-      { path: '/control/strategy', title: '自动联动策略配置', icon: 'SetUp' },
-      { path: '/control/group', title: '分组控制', icon: 'Grid' },
-      { path: '/control/fertilizer', title: '水肥配方控制', icon: 'Pouring' },
-      { path: '/control/logs', title: '控制日志与水电', icon: 'Document' },
+      { path: '/control/manual', title: '设备手动控制台', icon: 'Switch', roles: ['manager', 'operator'] },
+      { path: '/control/strategy', title: '自动联动策略配置', icon: 'SetUp', roles: ['manager', 'agronomist'] },
+      { path: '/control/group', title: '分组控制', icon: 'Grid', roles: ['manager', 'operator'] },
+      { path: '/control/fertilizer', title: '水肥配方控制', icon: 'Pouring', roles: ['manager', 'agronomist'] },
+      { path: '/control/logs', title: '控制日志与水电', icon: 'Document', roles: ['manager', 'operator'] },
     ],
   },
   {
@@ -66,34 +66,34 @@ const menus = [
     icon: 'BellFilled',
     children: [
       { path: '/alarm/realtime', title: '告警实时中心', icon: 'Bell' },
-      { path: '/alarm/process', title: '告警处理流程', icon: 'Connection' },
-      { path: '/alarm/rules', title: '告警规则配置', icon: 'SetUp' },
-      { path: '/alarm/history', title: '告警历史查询', icon: 'Document' },
-      { path: '/alarm/statistics', title: '告警统计分析', icon: 'DataAnalysis' },
+      { path: '/alarm/process', title: '告警处理流程', icon: 'Connection', roles: ['manager', 'operator'] },
+      { path: '/alarm/rules', title: '告警规则配置', icon: 'SetUp', roles: ['admin', 'manager'] },
+      { path: '/alarm/history', title: '告警历史查询', icon: 'Document', roles: ['manager', 'operator'] },
+      { path: '/alarm/statistics', title: '告警统计分析', icon: 'DataAnalysis', roles: ['manager'] },
     ],
   },
   {
     title: '生产农事管理',
     icon: 'Crop',
     children: [
-      { path: '/farm/plot', title: '地块档案管理', icon: 'Crop' },
-      { path: '/farm/gis', title: '地块GIS地图', icon: 'MapLocation' },
-      { path: '/farm/plan', title: '种植计划管理', icon: 'Tickets' },
-      { path: '/farm/order', title: '农事工单派单', icon: 'Promotion' },
-      { path: '/farm/record', title: '农事执行打卡与台账', icon: 'EditPen' },
-      { path: '/farm/stock', title: '农资库存管理', icon: 'Box' },
-      { path: '/farm/harvest', title: '采收与产量管理', icon: 'DataAnalysis' },
+      { path: '/farm/plot', title: '地块档案管理', icon: 'Crop', roles: ['manager'] },
+      { path: '/farm/gis', title: '地块GIS地图', icon: 'MapLocation', roles: ['manager'] },
+      { path: '/farm/plan', title: '种植计划管理', icon: 'Tickets', roles: ['manager', 'agronomist'] },
+      { path: '/farm/order', title: '农事工单派单', icon: 'Promotion', roles: ['manager'] },
+      { path: '/farm/record', title: '农事执行打卡与台账', icon: 'EditPen', roles: ['manager'] },
+      { path: '/farm/stock', title: '农资库存管理', icon: 'Box', roles: ['manager'] },
+      { path: '/farm/harvest', title: '采收与产量管理', icon: 'DataAnalysis', roles: ['manager'] },
     ],
   },
   {
     title: '产销对接与订单管理',
     icon: 'ShoppingCart',
     children: [
-      { path: '/sales/products', title: '农产品上架管理', icon: 'Goods' },
-      { path: '/sales/orders', title: '订单管理', icon: 'Tickets' },
-      { path: '/sales/shipments', title: '发货与物流管理', icon: 'Van' },
-      { path: '/sales/statistics', title: '销售统计', icon: 'TrendCharts' },
-      { path: '/sales/customers', title: '客户档案管理', icon: 'UserFilled' },
+      { path: '/sales/products', title: '农产品上架管理', icon: 'Goods', roles: ['sales'] },
+      { path: '/sales/orders', title: '订单管理', icon: 'Tickets', roles: ['sales'] },
+      { path: '/sales/shipments', title: '发货与物流管理', icon: 'Van', roles: ['sales'] },
+      { path: '/sales/statistics', title: '销售统计', icon: 'TrendCharts', roles: ['sales', 'manager'] },
+      { path: '/sales/customers', title: '客户档案管理', icon: 'UserFilled', roles: ['sales'] },
     ],
   },
   {
@@ -103,10 +103,24 @@ const menus = [
       { path: '/knowledge/overview', title: '农业专家知识库总览', icon: 'Reading' },
       { path: '/knowledge/pests', title: '病虫害知识库', icon: 'Crop' },
       { path: '/knowledge/pest-plans', title: '病虫害防治方案库', icon: 'FirstAidKit' },
-      { path: '/knowledge/manage', title: '知识库内容管理', icon: 'Management' },
+      { path: '/knowledge/manage', title: '知识库内容管理', icon: 'Management', roles: ['manager', 'agronomist'] },
     ],
   },
 ]
+
+const userRole = computed(() => auth.userInfo?.roleCode || '')
+const canAccess = (item) => userRole.value === 'admin' || !item.roles || item.roles.includes(userRole.value)
+const filteredMenus = computed(() => {
+  return menus
+    .map((m) => {
+      if (m.children) {
+        const children = m.children.filter(canAccess)
+        return children.length ? { ...m, children } : null
+      }
+      return canAccess(m) ? m : null
+    })
+    .filter(Boolean)
+})
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => route.meta.title || '')
@@ -166,7 +180,7 @@ async function handleLogout() {
           text-color="var(--samp-sidebar-text)"
           active-text-color="var(--samp-sidebar-active-text)"
         >
-          <template v-for="menu in menus" :key="menu.title">
+          <template v-for="menu in filteredMenus" :key="menu.title">
             <el-sub-menu v-if="menu.children" :index="menu.title">
               <template #title>
                 <el-icon><component :is="menu.icon" /></el-icon>
