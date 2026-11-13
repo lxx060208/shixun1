@@ -61,22 +61,21 @@ import {
   salesCustomers,
   farmCrops,
   farmSoilTypes,
+  farmers,
   farmOperationTypes,
   farmPlotNameList,
-  farmers,
+  farmMaterials,
   farmPlots,
-  farmPlantPlans,
+  farmPlans,
   farmWorkOrders,
   farmRecords,
-  farmMaterials,
   farmPurchases,
-  farmHarvestBatches,
-  expertFields,
-  knowledgeExperts,
+  farmHarvest,
+  knowledgeFields,
   knowledgeCategories,
+  knowledgeExperts,
   knowledgeArticles,
-  knowledgePests,
-  knowledgePlans,
+  pestLibrary,
 } from './mock'
 
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -1443,25 +1442,35 @@ export async function getSalesStatsApi() {
 }
 
 /* ------------------------- 生产农事管理 ------------------------- */
+const farmText = (v) => String(v ?? '').trim()
+
+const findFarmOrder = (id) => farmWorkOrders.find((o) => o.id === Number(id))
+const findFarmMaterial = (id) => farmMaterials.find((m) => m.id === Number(id))
+
+// 工单状态流转：待派单 → 已派单 → 进行中 → 已完成
+const farmOrderFlow = { 待派单: ['已派单'], 已派单: ['进行中'], 进行中: ['已完成'], 已完成: [] }
 
 export async function getFarmPlotsApi(params = {}) {
   await delay()
   const { keyword = '', crop = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmPlots.filter((p) => {
-    if (crop && p.crop !== crop) return false
-    if (kw) {
-      const text = `${p.plotCode} ${p.name} ${p.crop} ${p.owner} ${p.location}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const kw = farmText(keyword)
+  const list = farmPlots
+    .map((p) => ({ ...p }))
+    .filter((p) => {
+      if (crop && p.crop !== crop) return false
+      if (kw) {
+        const text = `${p.plotCode} ${p.name} ${p.crop} ${p.location} ${p.soilType} ${p.owner}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => a.id - b.id)
   const total = list.length
   const start = (page - 1) * pageSize
   return {
     list: list.slice(start, start + pageSize),
     total,
-    totalArea: farmPlots.reduce((s, p) => s + Number(p.area || 0), 0),
+    totalArea: farmPlots.reduce((sum, p) => sum + Number(p.area || 0), 0),
     inUseCount: farmPlots.filter((p) => p.status === 1).length,
   }
 }
@@ -1470,36 +1479,65 @@ export async function saveFarmPlotApi(payload) {
   await delay()
   const { id, ...data } = payload
   if (id) {
-    const idx = farmPlots.findIndex((p) => p.id === id)
-    if (idx === -1) throw new Error('地块不存在')
-    farmPlots[idx] = { ...farmPlots[idx], ...data }
+    const idx = farmPlots.findIndex((p) => p.id === Number(id))
+    if (idx === -1) throw new Error('地块档案不存在')
+    farmPlots[idx] = {
+      ...farmPlots[idx],
+      ...data,
+      area: Number(data.area ?? farmPlots[idx].area),
+      status: data.status ?? farmPlots[idx].status,
+      updateTime: stampNow(),
+    }
     return { ...farmPlots[idx] }
   }
-  const record = { ...data, coverImage: data.coverImage || '', id: nextId(farmPlots), createTime: stampNow() }
-  farmPlots.push(record)
+  const code = farmText(data.plotCode)
+  if (farmPlots.some((p) => p.plotCode === code)) throw new Error(`地块编码「${code}」已存在`)
+  const record = {
+    ...data,
+    id: nextId(farmPlots),
+    plotCode: code,
+    area: Number(data.area) || 0,
+    status: data.status ?? 1,
+    createTime: stampNow(),
+    updateTime: stampNow(),
+  }
+  farmPlots.unshift(record)
+  farmPlotNameList.push(record.name)
   return { ...record }
 }
 
 export async function deleteFarmPlotApi(id) {
   await delay()
-  const idx = farmPlots.findIndex((p) => p.id === id)
-  if (idx === -1) throw new Error('地块不存在')
+  const idx = farmPlots.findIndex((p) => p.id === Number(id))
+  if (idx === -1) throw new Error('地块档案不存在')
+  const plot = farmPlots[idx]
+  if (farmPlans.some((p) => p.plot === plot.name)) {
+    throw new Error('该地块已关联种植计划，无法删除')
+  }
+  if (farmWorkOrders.some((o) => o.plot === plot.name && o.status !== '已完成')) {
+    throw new Error('该地块存在未完成的农事工单，无法删除')
+  }
   farmPlots.splice(idx, 1)
+  const nameIdx = farmPlotNameList.indexOf(plot.name)
+  if (nameIdx > -1) farmPlotNameList.splice(nameIdx, 1)
   return { success: true }
 }
 
 export async function getFarmPlansApi(params = {}) {
   await delay()
-  const { operationType = '', keyword = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmPlantPlans.filter((p) => {
-    if (operationType && p.operationType !== operationType) return false
-    if (kw) {
-      const text = `${p.planName} ${p.plot} ${p.crop} ${p.executor}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const { keyword = '', operationType = '', page = 1, pageSize = 10 } = params
+  const kw = farmText(keyword)
+  const list = farmPlans
+    .map((p) => ({ ...p }))
+    .filter((p) => {
+      if (operationType && p.operationType !== operationType) return false
+      if (kw) {
+        const text = `${p.planName} ${p.plot} ${p.crop} ${p.executor}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.createTime > b.createTime ? -1 : a.createTime < b.createTime ? 1 : b.id - a.id))
   const total = list.length
   const start = (page - 1) * pageSize
   return { list: list.slice(start, start + pageSize), total }
@@ -1509,70 +1547,101 @@ export async function saveFarmPlanApi(payload) {
   await delay()
   const { id, ...data } = payload
   if (id) {
-    const idx = farmPlantPlans.findIndex((p) => p.id === id)
+    const idx = farmPlans.findIndex((p) => p.id === Number(id))
     if (idx === -1) throw new Error('种植计划不存在')
-    farmPlantPlans[idx] = { ...farmPlantPlans[idx], ...data }
-    return { ...farmPlantPlans[idx] }
+    farmPlans[idx] = { ...farmPlans[idx], ...data, updateTime: stampNow() }
+    return { ...farmPlans[idx] }
   }
-  const record = { ...data, id: nextId(farmPlantPlans), createTime: stampNow() }
-  farmPlantPlans.push(record)
+  const record = {
+    ...data,
+    id: nextId(farmPlans),
+    status: data.status || '未开始',
+    createTime: stampNow(),
+    updateTime: stampNow(),
+  }
+  farmPlans.unshift(record)
   return { ...record }
 }
 
 export async function deleteFarmPlanApi(id) {
   await delay()
-  const idx = farmPlantPlans.findIndex((p) => p.id === id)
+  const idx = farmPlans.findIndex((p) => p.id === Number(id))
   if (idx === -1) throw new Error('种植计划不存在')
-  farmPlantPlans.splice(idx, 1)
+  farmPlans.splice(idx, 1)
   return { success: true }
 }
 
 export async function getFarmOrdersApi(params = {}) {
   await delay()
-  const { status = '', keyword = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmWorkOrders.filter((o) => {
-    if (status && o.status !== status) return false
-    if (kw) {
-      const text = `${o.orderNo} ${o.title} ${o.plot} ${o.taskType} ${o.assignee}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const { keyword = '', status = '', page = 1, pageSize = 10 } = params
+  const kw = farmText(keyword)
+  const list = farmWorkOrders
+    .map((o) => ({ ...o }))
+    .filter((o) => {
+      if (status && o.status !== status) return false
+      if (kw) {
+        const text = `${o.orderNo} ${o.title} ${o.plot} ${o.assignee} ${o.taskType}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.createTime > b.createTime ? -1 : a.createTime < b.createTime ? 1 : b.id - a.id))
   const total = list.length
   const start = (page - 1) * pageSize
   return { list: list.slice(start, start + pageSize), total }
 }
 
 export async function createFarmOrderApi(payload) {
-  await delay()
-  const orderNo = payload.orderNo || ''
-  if (farmWorkOrders.some((o) => o.orderNo === orderNo)) throw new Error('工单编号已存在')
-  const record = { ...payload, assignee: payload.assignee || '', status: '待派单', id: nextId(farmWorkOrders), createTime: stampNow() }
+  await delay(400)
+  const orderNo = farmText(payload.orderNo)
+  if (!orderNo) throw new Error('请输入工单编号')
+  if (farmWorkOrders.some((o) => o.orderNo === orderNo)) throw new Error(`工单编号「${orderNo}」已存在`)
+  const record = {
+    ...payload,
+    id: nextId(farmWorkOrders),
+    orderNo,
+    assignee: '',
+    status: '待派单',
+    createTime: stampNow(),
+    updateTime: stampNow(),
+  }
   farmWorkOrders.unshift(record)
   return { ...record }
 }
 
 export async function assignFarmOrderApi(id, assignee) {
-  await delay()
-  const idx = farmWorkOrders.findIndex((o) => o.id === id)
-  if (idx === -1) throw new Error('工单不存在')
-  farmWorkOrders[idx] = { ...farmWorkOrders[idx], assignee, status: '已派单' }
-  return { ...farmWorkOrders[idx] }
+  await delay(300)
+  const order = findFarmOrder(id)
+  if (!order) throw new Error('工单不存在')
+  if (order.status === '已完成') throw new Error('已完成工单不可再指派')
+  if (!farmText(assignee)) throw new Error('请选择要指派的农户')
+  order.assignee = assignee
+  if (order.status === '待派单') order.status = '已派单'
+  order.updateTime = stampNow()
+  return { ...order }
 }
 
 export async function updateFarmOrderStatusApi(id, status) {
-  await delay()
-  const idx = farmWorkOrders.findIndex((o) => o.id === id)
-  if (idx === -1) throw new Error('工单不存在')
-  farmWorkOrders[idx] = { ...farmWorkOrders[idx], status }
-  return { ...farmWorkOrders[idx] }
+  await delay(300)
+  const order = findFarmOrder(id)
+  if (!order) throw new Error('工单不存在')
+  const allowed = farmOrderFlow[order.status] || []
+  if (!allowed.includes(status)) {
+    throw new Error(`当前工单状态为「${order.status}」，无法流转为「${status}」`)
+  }
+  order.status = status
+  order.updateTime = stampNow()
+  return { ...order }
 }
 
 export async function deleteFarmOrderApi(id) {
   await delay()
-  const idx = farmWorkOrders.findIndex((o) => o.id === id)
+  const idx = farmWorkOrders.findIndex((o) => o.id === Number(id))
   if (idx === -1) throw new Error('工单不存在')
+  const order = farmWorkOrders[idx]
+  if (farmRecords.some((r) => r.orderNo === order.orderNo)) {
+    throw new Error('该工单已有农事台账记录，无法删除')
+  }
   farmWorkOrders.splice(idx, 1)
   return { success: true }
 }
@@ -1580,14 +1649,17 @@ export async function deleteFarmOrderApi(id) {
 export async function getFarmRecordsApi(params = {}) {
   await delay()
   const { keyword = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmRecords.filter((r) => {
-    if (kw) {
-      const text = `${r.orderNo} ${r.plot} ${r.taskType} ${r.worker} ${r.materials}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const kw = farmText(keyword)
+  const list = farmRecords
+    .map((r) => ({ ...r, images: (r.images || []).slice() }))
+    .filter((r) => {
+      if (kw) {
+        const text = `${r.orderNo} ${r.plot} ${r.worker} ${r.taskType} ${r.materials}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.recordTime > b.recordTime ? -1 : a.recordTime < b.recordTime ? 1 : b.id - a.id))
   const total = list.length
   const start = (page - 1) * pageSize
   return { list: list.slice(start, start + pageSize), total }
@@ -1596,20 +1668,34 @@ export async function getFarmRecordsApi(params = {}) {
 export async function saveFarmRecordApi(payload) {
   await delay()
   const { id, ...data } = payload
+  const images = (data.images || []).slice()
   if (id) {
-    const idx = farmRecords.findIndex((r) => r.id === id)
+    const idx = farmRecords.findIndex((r) => r.id === Number(id))
     if (idx === -1) throw new Error('台账记录不存在')
-    farmRecords[idx] = { ...farmRecords[idx], ...data }
-    return { ...farmRecords[idx] }
+    farmRecords[idx] = {
+      ...farmRecords[idx],
+      ...data,
+      workHours: Number(data.workHours ?? farmRecords[idx].workHours),
+      images,
+      updateTime: stampNow(),
+    }
+    return { ...farmRecords[idx], images: images.slice() }
   }
-  const record = { ...data, images: data.images || [], id: nextId(farmRecords), recordTime: stampNow() }
+  const record = {
+    ...data,
+    id: nextId(farmRecords),
+    workHours: Number(data.workHours) || 1,
+    images,
+    recordTime: stampNow(),
+    createTime: stampNow(),
+  }
   farmRecords.unshift(record)
-  return { ...record }
+  return { ...record, images: images.slice() }
 }
 
 export async function deleteFarmRecordApi(id) {
   await delay()
-  const idx = farmRecords.findIndex((r) => r.id === id)
+  const idx = farmRecords.findIndex((r) => r.id === Number(id))
   if (idx === -1) throw new Error('台账记录不存在')
   farmRecords.splice(idx, 1)
   return { success: true }
@@ -1618,15 +1704,18 @@ export async function deleteFarmRecordApi(id) {
 export async function getFarmMaterialsApi(params = {}) {
   await delay()
   const { keyword = '', category = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmMaterials.filter((m) => {
-    if (category && m.category !== category) return false
-    if (kw) {
-      const text = `${m.name} ${m.spec} ${m.location}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const kw = farmText(keyword)
+  const list = farmMaterials
+    .map((m) => ({ ...m }))
+    .filter((m) => {
+      if (category && m.category !== category) return false
+      if (kw) {
+        const text = `${m.name} ${m.category} ${m.spec} ${m.location}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.updateTime > b.updateTime ? -1 : a.updateTime < b.updateTime ? 1 : b.id - a.id))
   const total = list.length
   const start = (page - 1) * pageSize
   return {
@@ -1640,68 +1729,119 @@ export async function saveFarmMaterialApi(payload) {
   await delay()
   const { id, ...data } = payload
   if (id) {
-    const idx = farmMaterials.findIndex((m) => m.id === id)
+    const idx = farmMaterials.findIndex((m) => m.id === Number(id))
     if (idx === -1) throw new Error('农资不存在')
-    farmMaterials[idx] = { ...farmMaterials[idx], ...data, updateTime: stampNow() }
+    farmMaterials[idx] = {
+      ...farmMaterials[idx],
+      ...data,
+      stock: Number(data.stock ?? farmMaterials[idx].stock),
+      threshold: Number(data.threshold ?? farmMaterials[idx].threshold),
+      updateTime: stampNow(),
+    }
     return { ...farmMaterials[idx] }
   }
-  const record = { ...data, id: nextId(farmMaterials), updateTime: stampNow() }
-  farmMaterials.push(record)
+  const record = {
+    ...data,
+    id: nextId(farmMaterials),
+    stock: Number(data.stock) || 0,
+    threshold: Number(data.threshold ?? 10),
+    createTime: stampNow(),
+    updateTime: stampNow(),
+  }
+  farmMaterials.unshift(record)
   return { ...record }
-}
-
-export async function adjustFarmStockApi(id, { type, quantity }) {
-  await delay()
-  const idx = farmMaterials.findIndex((m) => m.id === id)
-  if (idx === -1) throw new Error('农资不存在')
-  const item = farmMaterials[idx]
-  const qty = Number(quantity) || 0
-  const stock = type === 'in' ? item.stock + qty : item.stock - qty
-  if (stock < 0) throw new Error('库存不足，无法出库')
-  farmMaterials[idx] = { ...item, stock, updateTime: stampNow() }
-  return { ...farmMaterials[idx] }
 }
 
 export async function deleteFarmMaterialApi(id) {
   await delay()
-  const idx = farmMaterials.findIndex((m) => m.id === id)
+  const idx = farmMaterials.findIndex((m) => m.id === Number(id))
   if (idx === -1) throw new Error('农资不存在')
+  const material = farmMaterials[idx]
+  if (farmPurchases.some((p) => p.material === material.name)) {
+    throw new Error('该农资已有采购记录，无法删除')
+  }
   farmMaterials.splice(idx, 1)
   return { success: true }
+}
+
+export async function adjustFarmStockApi(id, { type, quantity } = {}) {
+  await delay(300)
+  const material = findFarmMaterial(id)
+  if (!material) throw new Error('农资不存在')
+  const qty = Number(quantity)
+  if (!qty || qty <= 0) throw new Error('请输入正确的出入库数量')
+  if (type === 'in') {
+    material.stock = Number(material.stock) + qty
+  } else if (type === 'out') {
+    if (Number(material.stock) < qty) {
+      throw new Error(`库存不足，当前库存 ${material.stock}${material.unit}`)
+    }
+    material.stock = Number(material.stock) - qty
+  } else {
+    throw new Error('不支持的出入库类型')
+  }
+  material.updateTime = stampNow()
+  return { ...material }
 }
 
 export async function getFarmPurchasesApi(params = {}) {
   await delay()
   const { keyword = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmPurchases.filter((p) => {
-    if (kw) {
-      const text = `${p.purchaseNo} ${p.material} ${p.supplier} ${p.purchaser}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const kw = farmText(keyword)
+  const list = farmPurchases
+    .map((p) => ({ ...p }))
+    .filter((p) => {
+      if (kw) {
+        const text = `${p.purchaseNo} ${p.material} ${p.supplier} ${p.purchaser}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.purchaseTime > b.purchaseTime ? -1 : a.purchaseTime < b.purchaseTime ? 1 : b.id - a.id))
   const total = list.length
   const start = (page - 1) * pageSize
   return {
     list: list.slice(start, start + pageSize),
     total,
-    totalAmount: roundMoney(farmPurchases.reduce((s, p) => s + Number(p.amount || 0), 0)),
+    totalAmount: roundMoney(salesSum(farmPurchases, 'amount')),
   }
 }
 
 export async function saveFarmPurchaseApi(payload) {
   await delay()
-  const purchaseNo = payload.purchaseNo || ''
-  if (farmPurchases.some((p) => p.purchaseNo === purchaseNo)) throw new Error('采购单号已存在')
-  const record = { ...payload, id: nextId(farmPurchases), purchaseTime: stampNow() }
+  const { id, ...data } = payload
+  const quantity = Number(data.quantity) || 0
+  const unitPrice = Number(data.unitPrice) || 0
+  const amount = roundMoney(quantity * unitPrice)
+  if (id) {
+    const idx = farmPurchases.findIndex((p) => p.id === Number(id))
+    if (idx === -1) throw new Error('采购记录不存在')
+    farmPurchases[idx] = {
+      ...farmPurchases[idx],
+      ...data,
+      quantity,
+      unitPrice,
+      amount,
+      updateTime: stampNow(),
+    }
+    return { ...farmPurchases[idx] }
+  }
+  const record = {
+    ...data,
+    id: nextId(farmPurchases),
+    quantity,
+    unitPrice,
+    amount,
+    purchaseTime: stampNow(),
+    createTime: stampNow(),
+  }
   farmPurchases.unshift(record)
   return { ...record }
 }
 
 export async function deleteFarmPurchaseApi(id) {
   await delay()
-  const idx = farmPurchases.findIndex((p) => p.id === id)
+  const idx = farmPurchases.findIndex((p) => p.id === Number(id))
   if (idx === -1) throw new Error('采购记录不存在')
   farmPurchases.splice(idx, 1)
   return { success: true }
@@ -1710,28 +1850,32 @@ export async function deleteFarmPurchaseApi(id) {
 export async function getFarmHarvestApi(params = {}) {
   await delay()
   const { keyword = '', crop = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = farmHarvestBatches.filter((b) => {
-    if (crop && b.crop !== crop) return false
-    if (kw) {
-      const text = `${b.batchNo} ${b.plot} ${b.crop}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const kw = farmText(keyword)
+  const list = farmHarvest
+    .map((h) => ({ ...h }))
+    .filter((h) => {
+      if (crop && h.crop !== crop) return false
+      if (kw) {
+        const text = `${h.batchNo} ${h.plot} ${h.crop}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.harvestDate > b.harvestDate ? -1 : a.harvestDate < b.harvestDate ? 1 : b.id - a.id))
   const total = list.length
   const start = (page - 1) * pageSize
-  const qtyOf = (b) => Number(b.gradeA || 0) + Number(b.gradeB || 0) + Number(b.gradeC || 0)
-  const totalQuantity = farmHarvestBatches.reduce((s, b) => s + qtyOf(b), 0)
-  const gradeASum = farmHarvestBatches.reduce((s, b) => s + Number(b.gradeA || 0), 0)
+
+  const quantityOf = (h) => Number(h.gradeA || 0) + Number(h.gradeB || 0) + Number(h.gradeC || 0)
+  const totalQuantity = farmHarvest.reduce((sum, h) => sum + quantityOf(h), 0)
+  const gradeAQuantity = farmHarvest.reduce((sum, h) => sum + Number(h.gradeA || 0), 0)
   return {
     list: list.slice(start, start + pageSize),
     total,
     stats: {
       totalQuantity,
-      batchCount: farmHarvestBatches.length,
-      gradeARate: totalQuantity ? Math.round((gradeASum / totalQuantity) * 1000) / 10 : 0,
-      plotCount: new Set(farmHarvestBatches.map((b) => b.plot)).size,
+      batchCount: farmHarvest.length,
+      gradeARate: totalQuantity ? Math.round((gradeAQuantity / totalQuantity) * 1000) / 10 : 0,
+      plotCount: new Set(farmHarvest.map((h) => h.plot)).size,
     },
   }
 }
@@ -1740,32 +1884,57 @@ export async function saveFarmHarvestApi(payload) {
   await delay()
   const { id, ...data } = payload
   if (id) {
-    const idx = farmHarvestBatches.findIndex((b) => b.id === id)
+    const idx = farmHarvest.findIndex((h) => h.id === Number(id))
     if (idx === -1) throw new Error('采收批次不存在')
-    farmHarvestBatches[idx] = { ...farmHarvestBatches[idx], ...data }
-    return { ...farmHarvestBatches[idx] }
+    farmHarvest[idx] = {
+      ...farmHarvest[idx],
+      ...data,
+      gradeA: Number(data.gradeA ?? farmHarvest[idx].gradeA),
+      gradeB: Number(data.gradeB ?? farmHarvest[idx].gradeB),
+      gradeC: Number(data.gradeC ?? farmHarvest[idx].gradeC),
+      updateTime: stampNow(),
+    }
+    return { ...farmHarvest[idx] }
   }
-  const record = { ...data, id: nextId(farmHarvestBatches), createTime: stampNow() }
-  farmHarvestBatches.unshift(record)
+  const record = {
+    ...data,
+    id: nextId(farmHarvest),
+    gradeA: Number(data.gradeA) || 0,
+    gradeB: Number(data.gradeB) || 0,
+    gradeC: Number(data.gradeC) || 0,
+    createTime: stampNow(),
+  }
+  farmHarvest.unshift(record)
   return { ...record }
 }
 
 export async function deleteFarmHarvestApi(id) {
   await delay()
-  const idx = farmHarvestBatches.findIndex((b) => b.id === id)
+  const idx = farmHarvest.findIndex((h) => h.id === Number(id))
   if (idx === -1) throw new Error('采收批次不存在')
-  farmHarvestBatches.splice(idx, 1)
+  farmHarvest.splice(idx, 1)
   return { success: true }
 }
 
 /* ------------------------- 农业专家与病虫害知识库 ------------------------- */
+const findKnowledgeExpert = (id) => knowledgeExperts.find((e) => e.id === id)
 
-const decorateKnowledgeArticle = (a) => {
-  const expert = knowledgeExperts.find((e) => e.id === a.expertId)
+const decorateExpert = (expert) => {
+  const published = knowledgeArticles.filter((a) => a.expertId === expert.id && a.status === '已发布')
   return {
-    ...a,
-    tags: a.tags || [],
-    author: expert ? expert.name : '',
+    ...expert,
+    articleCount: published.length,
+    articleTotal: knowledgeArticles.filter((a) => a.expertId === expert.id).length,
+    totalViews: published.reduce((sum, a) => sum + a.views, 0),
+  }
+}
+
+const decorateArticle = (article) => {
+  const expert = findKnowledgeExpert(article.expertId)
+  return {
+    ...article,
+    tags: article.tags.slice(),
+    author: expert ? expert.name : '平台编辑',
     authorOrg: expert ? expert.organization : '',
     authorTitle: expert ? expert.title : '',
   }
@@ -1774,90 +1943,112 @@ const decorateKnowledgeArticle = (a) => {
 export async function getKnowledgeOverviewApi() {
   await delay()
   const published = knowledgeArticles.filter((a) => a.status === '已发布')
-  const experts = knowledgeExperts.filter((e) => e.status === '已入驻')
-  const fields = expertFields
-    .map((name) => ({ name, count: experts.filter((e) => e.field === name).length }))
-    .filter((f) => f.count > 0)
+  const experts = knowledgeExperts.filter((e) => e.status === '已入驻').map(decorateExpert)
   const categories = knowledgeCategories.map((c) => ({
     ...c,
-    count: knowledgeArticles.filter((a) => a.category === c.name).length,
+    count: published.filter((a) => a.category === c.name).length,
   }))
-  const latestArticles = [...published]
-    .sort((a, b) => (a.publishTime > b.publishTime ? -1 : 1))
-    .slice(0, 5)
-    .map(decorateKnowledgeArticle)
-  const hotArticles = [...published]
-    .sort((a, b) => b.views - a.views)
-    .slice(0, 5)
-    .map((a) => {
-      const expert = knowledgeExperts.find((e) => e.id === a.expertId)
-      return { id: a.id, title: a.title, author: expert ? expert.name : '', category: a.category, views: a.views }
-    })
   return {
     stats: {
       expertCount: experts.length,
       articleCount: published.length,
-      pestCount: knowledgePests.length,
-      planCount: knowledgePlans.length,
-      totalViews: knowledgeArticles.reduce((s, a) => s + Number(a.views || 0), 0),
+      pestCount: pestLibrary.length,
+      planCount: pestLibrary.filter((p) => p.plan).length,
+      totalViews: published.reduce((sum, a) => sum + a.views, 0),
     },
-    experts,
-    fields,
+    fields: knowledgeFields
+      .map((name) => ({ name, count: experts.filter((e) => e.field === name).length }))
+      .filter((i) => i.count > 0),
     categories,
-    latestArticles,
-    hotArticles,
+    categoryDist: categories.filter((c) => c.count > 0).map((c) => ({ name: c.name, value: c.count })),
+    experts,
+    latestArticles: published
+      .slice()
+      .sort((a, b) => (a.publishTime > b.publishTime ? -1 : 1))
+      .slice(0, 5)
+      .map(decorateArticle),
+    hotArticles: published
+      .slice()
+      .sort((a, b) => b.views - a.views)
+      .slice(0, 5)
+      .map(decorateArticle),
   }
 }
 
-export async function getPestsApi(params = {}) {
+export async function getKnowledgeExpertsApi(params = {}) {
   await delay()
-  const { keyword = '', type = '', crop = '', severity = '', page = 1, pageSize = 8 } = params
+  const { keyword = '', field = '', status = '', page = 1, pageSize = 10 } = params
   const kw = keyword.trim()
-  const list = knowledgePests.filter((p) => {
-    if (type && p.type !== type) return false
-    if (crop && !p.crops.split('、').includes(crop)) return false
-    if (severity && p.severity !== severity) return false
-    if (kw) {
-      const text = `${p.name} ${p.alias} ${p.crops} ${p.symptom}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
+  const list = knowledgeExperts
+    .map(decorateExpert)
+    .filter((e) => {
+      if (field && e.field !== field) return false
+      if (status && e.status !== status) return false
+      if (kw) {
+        const text = `${e.id} ${e.name} ${e.title} ${e.field} ${e.organization} ${e.specialty}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.status === b.status ? (a.joinTime > b.joinTime ? -1 : 1) : a.status === '已入驻' ? -1 : 1))
   const total = list.length
   const start = (page - 1) * pageSize
   return {
     list: list.slice(start, start + pageSize),
     total,
-    crops: [...new Set(knowledgePests.flatMap((p) => p.crops.split('、')))].sort(),
-    diseaseCount: knowledgePests.filter((p) => p.type === '病害').length,
-    insectCount: knowledgePests.filter((p) => p.type === '虫害').length,
+    fields: knowledgeFields.slice(),
+    pendingCount: knowledgeExperts.filter((e) => e.status === '待审核').length,
   }
 }
 
-export async function getPestPlansApi(params = {}) {
+export async function saveKnowledgeExpertApi(payload) {
   await delay()
-  const { keyword = '', type = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = knowledgePlans.filter((p) => {
-    if (type && p.type !== type) return false
-    if (kw) {
-      const text = `${p.name} ${p.alias} ${p.crops} ${p.plan.principle}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
-  const total = list.length
-  const start = (page - 1) * pageSize
-  return {
-    list: list.slice(start, start + pageSize),
-    total,
-    stats: {
-      total: knowledgePlans.length,
-      disease: knowledgePlans.filter((p) => p.type === '病害').length,
-      insect: knowledgePlans.filter((p) => p.type === '虫害').length,
-      drugs: knowledgePlans.reduce((s, p) => s + p.plan.drugs.length, 0),
-    },
+  const { id, ...data } = payload
+  if (id) {
+    const idx = knowledgeExperts.findIndex((e) => e.id === id)
+    if (idx === -1) throw new Error('专家不存在')
+    knowledgeExperts[idx] = { ...knowledgeExperts[idx], ...data }
+    return decorateExpert(knowledgeExperts[idx])
   }
+  const max = knowledgeExperts.reduce((m, e) => Math.max(m, Number(e.id.slice(1)) || 0), 0)
+  const record = {
+    avatar: '',
+    status: '待审核',
+    years: 5,
+    specialty: '',
+    intro: '',
+    ...data,
+    id: `E${String(max + 1).padStart(3, '0')}`,
+    joinTime: stampNow(),
+  }
+  knowledgeExperts.push(record)
+  return decorateExpert(record)
+}
+
+export async function auditKnowledgeExpertApi(id, action) {
+  await delay()
+  const expert = findKnowledgeExpert(id)
+  if (!expert) throw new Error('专家不存在')
+  if (action === 'approve') {
+    expert.status = '已入驻'
+    expert.joinTime = stampNow()
+  } else if (action === 'reject') {
+    expert.status = '已驳回'
+  } else {
+    throw new Error('不支持的审核动作')
+  }
+  return decorateExpert(expert)
+}
+
+export async function deleteKnowledgeExpertApi(id) {
+  await delay()
+  const idx = knowledgeExperts.findIndex((e) => e.id === id)
+  if (idx === -1) throw new Error('专家不存在')
+  if (knowledgeArticles.some((a) => a.expertId === id)) {
+    throw new Error('该专家已关联知识文章，无法删除')
+  }
+  knowledgeExperts.splice(idx, 1)
+  return { success: true }
 }
 
 export async function getKnowledgeArticlesApi(params = {}) {
@@ -1865,17 +2056,17 @@ export async function getKnowledgeArticlesApi(params = {}) {
   const { keyword = '', category = '', status = '', page = 1, pageSize = 10 } = params
   const kw = keyword.trim()
   const list = knowledgeArticles
+    .map(decorateArticle)
     .filter((a) => {
       if (category && a.category !== category) return false
       if (status && a.status !== status) return false
       if (kw) {
-        const author = (knowledgeExperts.find((e) => e.id === a.expertId) || {}).name || ''
-        const text = `${a.title} ${a.tags.join(' ')} ${author}`
+        const text = `${a.id} ${a.title} ${a.category} ${a.author} ${a.tags.join(' ')}`
         if (!text.includes(kw)) return false
       }
       return true
     })
-    .map(decorateKnowledgeArticle)
+    .sort((a, b) => (a.publishTime > b.publishTime ? -1 : 1))
   const total = list.length
   const start = (page - 1) * pageSize
   return {
@@ -1896,35 +2087,40 @@ export async function saveKnowledgeArticleApi(payload) {
   if (id) {
     const idx = knowledgeArticles.findIndex((a) => a.id === id)
     if (idx === -1) throw new Error('知识条目不存在')
-    knowledgeArticles[idx] = { ...knowledgeArticles[idx], ...data }
-    return decorateKnowledgeArticle(knowledgeArticles[idx])
+    const before = { ...knowledgeArticles[idx] }
+    knowledgeArticles[idx] = { ...before, ...data }
+    return decorateArticle(knowledgeArticles[idx])
   }
-  const max = knowledgeArticles.reduce((m, a) => Math.max(m, Number(a.id.slice(3)) || 0), 0)
+  const max = knowledgeArticles.reduce((m, a) => Math.max(m, Number(a.id.slice(1)) || 0), 0)
   const record = {
-    ...data,
-    status: '待审核',
-    views: 0,
-    publishTime: '',
+    tags: [],
+    recommend: false,
     auditRemark: '',
-    recommend: !!data.recommend,
-    tags: data.tags || [],
-    id: `ART${String(max + 1).padStart(11, '0')}`,
+    ...data,
+    id: `A${String(max + 1).padStart(3, '0')}`,
+    views: 0,
+    status: data.status || '草稿',
+    publishTime: stampNow(),
   }
   knowledgeArticles.unshift(record)
-  return decorateKnowledgeArticle(record)
+  return decorateArticle(record)
 }
 
 export async function auditKnowledgeArticleApi(id, action, remark = '') {
   await delay()
-  const idx = knowledgeArticles.findIndex((a) => a.id === id)
-  if (idx === -1) throw new Error('知识条目不存在')
-  const article = knowledgeArticles[idx]
+  const article = knowledgeArticles.find((a) => a.id === id)
+  if (!article) throw new Error('知识条目不存在')
   if (action === 'publish') {
-    knowledgeArticles[idx] = { ...article, status: '已发布', publishTime: stampNow(), auditRemark: '' }
+    article.status = '已发布'
+    article.publishTime = stampNow()
+    article.auditRemark = remark || '审核通过，已发布'
   } else if (action === 'reject') {
-    knowledgeArticles[idx] = { ...article, status: '草稿', auditRemark: remark }
+    article.status = '草稿'
+    article.auditRemark = remark || '审核退回，请修改后重新提交'
+  } else {
+    throw new Error('不支持的审核动作')
   }
-  return decorateKnowledgeArticle(knowledgeArticles[idx])
+  return decorateArticle(article)
 }
 
 export async function deleteKnowledgeArticleApi(id) {
@@ -1932,66 +2128,6 @@ export async function deleteKnowledgeArticleApi(id) {
   const idx = knowledgeArticles.findIndex((a) => a.id === id)
   if (idx === -1) throw new Error('知识条目不存在')
   knowledgeArticles.splice(idx, 1)
-  return { success: true }
-}
-
-export async function getKnowledgeExpertsApi(params = {}) {
-  await delay()
-  const { keyword = '', field = '', status = '', page = 1, pageSize = 10 } = params
-  const kw = keyword.trim()
-  const list = knowledgeExperts.filter((e) => {
-    if (field && e.field !== field) return false
-    if (status && e.status !== status) return false
-    if (kw) {
-      const text = `${e.name} ${e.organization} ${e.specialty}`
-      if (!text.includes(kw)) return false
-    }
-    return true
-  })
-  const total = list.length
-  const start = (page - 1) * pageSize
-  return {
-    list: list.slice(start, start + pageSize),
-    total,
-    fields: expertFields,
-    pendingCount: knowledgeExperts.filter((e) => e.status === '待审核').length,
-  }
-}
-
-export async function saveKnowledgeExpertApi(payload) {
-  await delay()
-  const { id, ...data } = payload
-  if (id) {
-    const idx = knowledgeExperts.findIndex((e) => e.id === id)
-    if (idx === -1) throw new Error('专家档案不存在')
-    knowledgeExperts[idx] = { ...knowledgeExperts[idx], ...data }
-    return { ...knowledgeExperts[idx] }
-  }
-  const record = {
-    ...data,
-    status: '待审核',
-    articleCount: 0,
-    totalViews: 0,
-    joinTime: stampNow(),
-    id: nextId(knowledgeExperts),
-  }
-  knowledgeExperts.unshift(record)
-  return { ...record }
-}
-
-export async function auditKnowledgeExpertApi(id, action) {
-  await delay()
-  const idx = knowledgeExperts.findIndex((e) => e.id === id)
-  if (idx === -1) throw new Error('专家不存在')
-  knowledgeExperts[idx] = { ...knowledgeExperts[idx], status: action === 'approve' ? '已入驻' : '已驳回' }
-  return { ...knowledgeExperts[idx] }
-}
-
-export async function deleteKnowledgeExpertApi(id) {
-  await delay()
-  const idx = knowledgeExperts.findIndex((e) => e.id === id)
-  if (idx === -1) throw new Error('专家不存在')
-  knowledgeExperts.splice(idx, 1)
   return { success: true }
 }
 
@@ -2005,21 +2141,30 @@ export async function getKnowledgeCategoriesApi() {
 
 export async function saveKnowledgeCategoryApi(payload) {
   await delay()
-  const { id, ...data } = payload
-  if (id) {
-    const idx = knowledgeCategories.findIndex((c) => c.id === id)
+  const name = (payload.name || '').trim()
+  if (!name) throw new Error('请输入分类名称')
+  if (knowledgeCategories.some((c) => c.name === name && c.id !== payload.id)) {
+    throw new Error('该分类名称已存在')
+  }
+  if (payload.id) {
+    const idx = knowledgeCategories.findIndex((c) => c.id === payload.id)
     if (idx === -1) throw new Error('分类不存在')
     const oldName = knowledgeCategories[idx].name
-    knowledgeCategories[idx] = { ...knowledgeCategories[idx], ...data }
-    if (data.name && data.name !== oldName) {
+    knowledgeCategories[idx] = { ...knowledgeCategories[idx], ...payload, name }
+    if (oldName !== name) {
       knowledgeArticles.forEach((a) => {
-        if (a.category === oldName) a.category = data.name
+        if (a.category === oldName) a.category = name
       })
     }
     return { ...knowledgeCategories[idx] }
   }
-  const max = knowledgeCategories.reduce((m, c) => Math.max(m, Number(c.id.slice(2)) || 0), 0)
-  const record = { ...data, id: `C-${String(max + 1).padStart(2, '0')}` }
+  const max = knowledgeCategories.reduce((m, c) => Math.max(m, Number(c.id.slice(1)) || 0), 0)
+  const record = {
+    description: '',
+    ...payload,
+    name,
+    id: `K${String(max + 1).padStart(2, '0')}`,
+  }
   knowledgeCategories.push(record)
   return { ...record }
 }
@@ -2028,9 +2173,67 @@ export async function deleteKnowledgeCategoryApi(id) {
   await delay()
   const idx = knowledgeCategories.findIndex((c) => c.id === id)
   if (idx === -1) throw new Error('分类不存在')
-  if (knowledgeArticles.some((a) => a.category === knowledgeCategories[idx].name)) {
+  const name = knowledgeCategories[idx].name
+  if (knowledgeArticles.some((a) => a.category === name)) {
     throw new Error('该分类下仍有知识条目，无法删除')
   }
   knowledgeCategories.splice(idx, 1)
   return { success: true }
+}
+
+export async function getPestsApi(params = {}) {
+  await delay()
+  const { keyword = '', type = '', crop = '', severity = '', page = 1, pageSize = 8 } = params
+  const kw = keyword.trim()
+  const list = pestLibrary
+    .filter((p) => {
+      if (type && p.type !== type) return false
+      if (crop && !p.crops.includes(crop)) return false
+      if (severity && p.severity !== severity) return false
+      if (kw) {
+        const text = `${p.id} ${p.name} ${p.alias} ${p.crops} ${p.symptom}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .map(({ plan, ...rest }) => ({ ...rest }))
+    .sort((a, b) => (a.type === b.type ? (a.severity === b.severity ? 0 : a.severity === '高' ? -1 : 1) : a.type === '病害' ? -1 : 1))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  const crops = Array.from(new Set(pestLibrary.flatMap((p) => p.crops.split('、'))))
+  return {
+    list: list.slice(start, start + pageSize),
+    total,
+    crops,
+    diseaseCount: pestLibrary.filter((p) => p.type === '病害').length,
+    insectCount: pestLibrary.filter((p) => p.type === '虫害').length,
+  }
+}
+
+export async function getPestPlansApi(params = {}) {
+  await delay()
+  const { keyword = '', type = '', page = 1, pageSize = 10 } = params
+  const kw = keyword.trim()
+  const list = pestLibrary
+    .filter((p) => {
+      if (type && p.type !== type) return false
+      if (kw) {
+        const text = `${p.id} ${p.name} ${p.alias} ${p.crops} ${p.plan.principle}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .map((p) => JSON.parse(JSON.stringify(p)))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  return {
+    list: list.slice(start, start + pageSize),
+    total,
+    stats: {
+      total: pestLibrary.length,
+      disease: pestLibrary.filter((p) => p.type === '病害').length,
+      insect: pestLibrary.filter((p) => p.type === '虫害').length,
+      drugs: pestLibrary.reduce((sum, p) => sum + p.plan.drugs.length, 0),
+    },
+  }
 }
