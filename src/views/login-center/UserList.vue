@@ -1,10 +1,13 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserListApi, saveUserApi, deleteUserApi } from '@/api'
 import { departments } from '@/api/mock'
 import { roles } from '@/api/db'
 import UserForm from './UserForm.vue'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 
 const loading = ref(false)
 const list = ref([])
@@ -52,6 +55,12 @@ async function loadData() {
   }
 }
 
+// 客户端分页：筛选或删除后若 filteredList 变短导致当前页越界，自动回退
+watch([() => filteredList.value.length, () => pagination.pageSize], ([len, size]) => {
+  const maxPage = Math.max(1, Math.ceil(len / size))
+  if (pagination.page > maxPage) pagination.page = maxPage
+})
+
 function handleSearch() {
   pagination.page = 1
 }
@@ -74,19 +83,27 @@ function handleEdit(row) {
 }
 
 async function handleSave(payload) {
-  await saveUserApi(payload)
-  ElMessage.success(editingUser.value ? '修改成功' : '新增成功')
-  dialogVisible.value = false
-  await loadData()
+  try {
+    await saveUserApi(payload)
+    ElMessage.success(editingUser.value ? '修改成功' : '新增成功')
+    dialogVisible.value = false
+    await loadData()
+  } catch (err) {
+    ElMessage.error(err.message || '保存失败')
+  }
 }
 
 async function handleDelete(row) {
+  if (row.id === auth.userInfo?.id) {
+    ElMessage.warning('不能删除当前登录账号')
+    return
+  }
   await ElMessageBox.confirm(`确定删除用户「${row.name}」吗？`, '提示', {
     confirmButtonText: '删除',
     cancelButtonText: '取消',
     type: 'warning',
   })
-  await deleteUserApi(row.id)
+  await deleteUserApi(row.id, auth.userInfo?.id)
   ElMessage.success('删除成功')
   await loadData()
 }
@@ -98,7 +115,7 @@ onMounted(loadData)
   <div class="page-container">
     <div class="page-header">
       <h3 class="page-title">用户管理</h3>
-      <el-button type="primary" @click="handleAdd">
+      <el-button v-if="auth.hasPermission('btn-user-add')" type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>新增用户
       </el-button>
     </div>
@@ -145,8 +162,22 @@ onMounted(loadData)
         </el-table-column>
         <el-table-column label="操作" width="150" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="auth.hasPermission('btn-user-edit')" link type="primary" @click="handleEdit(row)">编辑</el-button>
+            <el-tooltip
+              :disabled="row.id !== auth.userInfo?.id"
+              content="不能删除当前登录账号"
+              placement="top"
+            >
+              <span>
+                <el-button
+                  v-if="auth.hasPermission('btn-user-del')"
+                  link
+                  type="danger"
+                  :disabled="row.id === auth.userInfo?.id"
+                  @click="handleDelete(row)"
+                >删除</el-button>
+              </span>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>

@@ -45,6 +45,11 @@ async function load() {
     list.value = res.list
     total.value = res.total
     Object.assign(stats, res.stats)
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载发货单失败')
   } finally {

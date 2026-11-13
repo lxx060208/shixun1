@@ -22,14 +22,26 @@ const defaultForm = () => ({
   department: '生产管理部',
   position: '',
   status: 1,
+  password: '',
 })
 
 const form = reactive(defaultForm())
 const isEdit = ref(false)
 
+// 新增用户必须设置初始密码：8-20 位且同时包含字母和数字
+const validatePassword = (rule, value, callback) => {
+  if (isEdit.value) return callback()
+  if (!value) return callback(new Error('请输入初始密码'))
+  if (!/^(?=.*[A-Za-z])(?=.*\d)[\w!@#$%^&*]{8,20}$/.test(value)) {
+    return callback(new Error('8-20 位，需同时包含字母和数字'))
+  }
+  callback()
+}
+
 const rules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
+  password: [{ validator: validatePassword, trigger: 'blur' }],
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' },
@@ -114,6 +126,14 @@ function handleClosed() {
           <el-form-item label="职位">
             <el-input v-model="form.position" placeholder="请输入职位" />
           </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item v-if="!isEdit" label="初始密码" prop="password">
+            <el-input v-model="form.password" type="password" show-password autocomplete="new-password" placeholder="8-20 位，含字母和数字" />
+          </el-form-item>
+        </el-col>
+        <el-col :span="24" v-if="!isEdit">
+          <el-alert type="info" :closable="false" show-icon title="用户首次登录时须修改初始密码后才能进入系统" />
         </el-col>
         <el-col :span="12">
           <el-form-item label="状态">

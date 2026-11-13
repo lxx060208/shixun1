@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getSoilApi } from '@/api/iot'
 import TrendChart from '@/components/TrendChart.vue'
@@ -27,6 +27,15 @@ const pagedHistory = computed(() => {
 })
 
 const statusType = (s) => (s === 'warn' ? 'warning' : 'success')
+
+// 客户端分页：刷新数据后若历史记录减少导致当前页越界，自动回退
+watch(
+  () => data.value?.history?.length ?? 0,
+  (len) => {
+    const maxPage = Math.max(1, Math.ceil(len / pageSize))
+    if (tablePage.value > maxPage) tablePage.value = maxPage
+  },
+)
 
 onMounted(load)
 </script>

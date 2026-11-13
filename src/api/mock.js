@@ -282,6 +282,84 @@ export const permissionTree = [
     children: [
       { id: 'menu-data-overview', label: '平台数据总览', type: 'menu' },
       { id: 'menu-data-gis', label: 'GIS 地图', type: 'menu' },
+      { id: 'menu-data-realtime', label: '实时环境数据', type: 'menu' },
+      { id: 'menu-data-water', label: '水肥与产量统计', type: 'menu' },
+      { id: 'menu-data-device', label: '设备运维大屏', type: 'menu' },
+      { id: 'menu-data-alarm-farm', label: '告警与农事进度', type: 'menu' },
+    ],
+  },
+  {
+    id: 'menu-iot',
+    label: '物联网环境监测',
+    type: 'menu',
+    children: [
+      { id: 'menu-iot-overview', label: '环境监测总览', type: 'menu' },
+      { id: 'menu-iot-weather', label: '气象监测', type: 'menu' },
+      { id: 'menu-iot-soil', label: '土壤墒情监测', type: 'menu' },
+      { id: 'menu-iot-water', label: '水质监测', type: 'menu' },
+      { id: 'menu-iot-video', label: '视频监控', type: 'menu' },
+      { id: 'menu-iot-collection', label: '采集管理', type: 'menu' },
+    ],
+  },
+  {
+    id: 'menu-control',
+    label: '远程智能控制',
+    type: 'menu',
+    children: [
+      { id: 'menu-control-manual', label: '设备手动控制台', type: 'menu' },
+      { id: 'menu-control-strategy', label: '自动联动策略配置', type: 'menu' },
+      { id: 'menu-control-group', label: '分组控制', type: 'menu' },
+      { id: 'menu-control-fertilizer', label: '水肥配方控制', type: 'menu' },
+      { id: 'menu-control-logs', label: '控制日志与水电', type: 'menu' },
+    ],
+  },
+  {
+    id: 'menu-alarm',
+    label: '告警消息中心',
+    type: 'menu',
+    children: [
+      { id: 'menu-alarm-realtime', label: '告警实时中心', type: 'menu' },
+      { id: 'menu-alarm-process', label: '告警处理流程', type: 'menu' },
+      { id: 'menu-alarm-rules', label: '告警规则配置', type: 'menu' },
+      { id: 'menu-alarm-history', label: '告警历史查询', type: 'menu' },
+      { id: 'menu-alarm-statistics', label: '告警统计分析', type: 'menu' },
+    ],
+  },
+  {
+    id: 'menu-farm',
+    label: '生产农事管理',
+    type: 'menu',
+    children: [
+      { id: 'menu-farm-plot', label: '地块档案管理', type: 'menu' },
+      { id: 'menu-farm-gis', label: '地块GIS地图', type: 'menu' },
+      { id: 'menu-farm-plan', label: '种植计划管理', type: 'menu' },
+      { id: 'menu-farm-order', label: '农事工单派单', type: 'menu' },
+      { id: 'menu-farm-record', label: '农事执行打卡与台账', type: 'menu' },
+      { id: 'menu-farm-stock', label: '农资库存管理', type: 'menu' },
+      { id: 'menu-farm-harvest', label: '采收与产量管理', type: 'menu' },
+    ],
+  },
+  {
+    id: 'menu-sales',
+    label: '产销对接与订单管理',
+    type: 'menu',
+    children: [
+      { id: 'menu-sales-products', label: '农产品上架管理', type: 'menu' },
+      { id: 'menu-sales-orders', label: '订单管理', type: 'menu' },
+      { id: 'menu-sales-shipments', label: '发货与物流管理', type: 'menu' },
+      { id: 'menu-sales-statistics', label: '销售统计', type: 'menu' },
+      { id: 'menu-sales-customers', label: '客户档案管理', type: 'menu' },
+    ],
+  },
+  {
+    id: 'menu-knowledge',
+    label: '农业专家与病虫害知识库',
+    type: 'menu',
+    children: [
+      { id: 'menu-know-overview', label: '知识库总览', type: 'menu' },
+      { id: 'menu-know-pests', label: '病虫害知识库', type: 'menu' },
+      { id: 'menu-know-pest-plans', label: '病虫害防治方案库', type: 'menu' },
+      { id: 'menu-know-manage', label: '知识库内容管理', type: 'menu' },
     ],
   },
   {
@@ -297,11 +375,65 @@ export const permissionTree = [
 ]
 
 export const rolePermissions = {
-  admin: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify', 'menu-system', 'menu-system-user', 'btn-user-add', 'btn-user-edit', 'btn-user-del', 'btn-user-role', 'menu-system-role', 'btn-role-add', 'btn-role-perm', 'menu-system-log', 'menu-system-tenant', 'menu-data', 'menu-data-overview', 'menu-data-gis', 'data-scope', 'data-all'],
-  manager: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify', 'menu-data', 'menu-data-overview', 'menu-data-gis', 'data-scope', 'data-dept'],
-  operator: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'data-scope', 'data-dept'],
-  sales: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify', 'data-scope', 'data-self'],
-  agronomist: ['menu-dashboard', 'btn-dashboard-view', 'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'data-scope', 'data-self'],
+  // admin 全部权限
+  admin: [
+    'menu-dashboard', 'btn-dashboard-view',
+    'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify',
+    'menu-system', 'menu-system-user', 'btn-user-add', 'btn-user-edit', 'btn-user-del', 'btn-user-role',
+    'menu-system-role', 'btn-role-add', 'btn-role-perm',
+    'menu-system-log', 'menu-system-tenant',
+    'menu-data', 'menu-data-overview', 'menu-data-gis', 'menu-data-realtime', 'menu-data-water', 'menu-data-device', 'menu-data-alarm-farm',
+    'menu-iot', 'menu-iot-overview', 'menu-iot-weather', 'menu-iot-soil', 'menu-iot-water', 'menu-iot-video', 'menu-iot-collection',
+    'menu-control', 'menu-control-manual', 'menu-control-strategy', 'menu-control-group', 'menu-control-fertilizer', 'menu-control-logs',
+    'menu-alarm', 'menu-alarm-realtime', 'menu-alarm-process', 'menu-alarm-rules', 'menu-alarm-history', 'menu-alarm-statistics',
+    'menu-farm', 'menu-farm-plot', 'menu-farm-gis', 'menu-farm-plan', 'menu-farm-order', 'menu-farm-record', 'menu-farm-stock', 'menu-farm-harvest',
+    'menu-sales', 'menu-sales-products', 'menu-sales-orders', 'menu-sales-shipments', 'menu-sales-statistics', 'menu-sales-customers',
+    'menu-knowledge', 'menu-know-overview', 'menu-know-pests', 'menu-know-pest-plans', 'menu-know-manage',
+    'data-scope', 'data-all',
+  ],
+  // 农场管理者：核心业务全模块
+  manager: [
+    'menu-dashboard', 'btn-dashboard-view',
+    'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify',
+    'menu-data', 'menu-data-overview', 'menu-data-gis', 'menu-data-realtime', 'menu-data-water', 'menu-data-device', 'menu-data-alarm-farm',
+    'menu-iot', 'menu-iot-overview', 'menu-iot-weather', 'menu-iot-soil', 'menu-iot-water', 'menu-iot-video',
+    'menu-control', 'menu-control-manual', 'menu-control-group', 'menu-control-logs',
+    'menu-alarm', 'menu-alarm-realtime', 'menu-alarm-process', 'menu-alarm-history', 'menu-alarm-statistics',
+    'menu-farm', 'menu-farm-plot', 'menu-farm-gis', 'menu-farm-plan', 'menu-farm-order', 'menu-farm-record', 'menu-farm-stock', 'menu-farm-harvest',
+    'menu-sales', 'menu-sales-products', 'menu-sales-orders', 'menu-sales-shipments',
+    'menu-knowledge', 'menu-know-overview', 'menu-know-pests', 'menu-know-pest-plans',
+    'data-scope', 'data-dept',
+  ],
+  // 运维人员：IoT + 远程控制 + 告警 + 部分农事
+  operator: [
+    'menu-dashboard', 'btn-dashboard-view',
+    'menu-profile', 'menu-profile-info', 'menu-profile-pwd',
+    'menu-data', 'menu-data-device', 'menu-data-alarm-farm',
+    'menu-iot', 'menu-iot-overview', 'menu-iot-weather', 'menu-iot-soil', 'menu-iot-water', 'menu-iot-video', 'menu-iot-collection',
+    'menu-control', 'menu-control-manual', 'menu-control-group', 'menu-control-fertilizer', 'menu-control-logs',
+    'menu-alarm', 'menu-alarm-realtime', 'menu-alarm-process', 'menu-alarm-rules', 'menu-alarm-history',
+    'menu-farm', 'menu-farm-record', 'menu-farm-stock',
+    'data-scope', 'data-dept',
+  ],
+  // 产销业务员：销售 + 数据总览
+  sales: [
+    'menu-dashboard', 'btn-dashboard-view',
+    'menu-profile', 'menu-profile-info', 'menu-profile-pwd', 'menu-profile-notify',
+    'menu-data', 'menu-data-overview', 'menu-data-water',
+    'menu-sales', 'menu-sales-products', 'menu-sales-orders', 'menu-sales-shipments', 'menu-sales-statistics', 'menu-sales-customers',
+    'menu-alarm', 'menu-alarm-history',
+    'data-scope', 'data-self',
+  ],
+  // 农技人员：农事 + 知识库 + 数据
+  agronomist: [
+    'menu-dashboard', 'btn-dashboard-view',
+    'menu-profile', 'menu-profile-info', 'menu-profile-pwd',
+    'menu-data', 'menu-data-overview', 'menu-data-water', 'menu-data-alarm-farm',
+    'menu-farm', 'menu-farm-plot', 'menu-farm-gis', 'menu-farm-plan', 'menu-farm-record', 'menu-farm-harvest',
+    'menu-knowledge', 'menu-know-overview', 'menu-know-pests', 'menu-know-pest-plans', 'menu-know-manage',
+    'menu-alarm', 'menu-alarm-history', 'menu-alarm-statistics',
+    'data-scope', 'data-self',
+  ],
 }
 
 /* ==================== 数据展示模块 ==================== */

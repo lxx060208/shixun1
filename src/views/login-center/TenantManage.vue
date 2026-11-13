@@ -24,7 +24,21 @@ const form = reactive({
 })
 
 const rules = {
-  code: [{ required: true, message: '请输入租户编码', trigger: 'blur' }],
+  code: [
+    { required: true, message: '请输入租户编码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        const code = (value || '').trim()
+        if (!code) return callback()
+        const duplicated = list.value.some(
+          (t) => t.code.toLowerCase() === code.toLowerCase() && t.id !== editingTenant.value?.id,
+        )
+        if (duplicated) return callback(new Error(`租户编码「${code}」已存在，请更换`))
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
   name: [{ required: true, message: '请输入租户名称', trigger: 'blur' }],
   contact: [{ required: true, message: '请输入联系人', trigger: 'blur' }],
   phone: [
@@ -96,9 +110,13 @@ async function handleDelete(row) {
     cancelButtonText: '取消',
     type: 'warning',
   })
-  await deleteTenantApi(row.id)
-  ElMessage.success('删除成功')
-  await loadData()
+  try {
+    await deleteTenantApi(row.id)
+    ElMessage.success('删除成功')
+    await loadData()
+  } catch (e) {
+    ElMessage.error(e.message || '删除失败')
+  }
 }
 
 onMounted(loadData)

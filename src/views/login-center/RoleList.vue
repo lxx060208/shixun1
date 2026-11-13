@@ -3,6 +3,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRoleListApi, saveRoleApi, deleteRoleApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 
 const router = useRouter()
 const loading = ref(false)
@@ -69,14 +72,24 @@ async function handleSave() {
 }
 
 async function handleDelete(row) {
-  await ElMessageBox.confirm(`确定删除角色「${row.name}」吗？`, '提示', {
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-    type: 'warning',
-  })
-  await deleteRoleApi(row.id)
-  ElMessage.success('删除成功')
-  await loadData()
+  // 仍被用户引用的角色不可删除，避免用户角色编码悬空
+  if (row.userCount > 0) {
+    ElMessage.warning(`角色「${row.name}」仍被 ${row.userCount} 名用户使用，无法删除`)
+    return
+  }
+  try {
+    await ElMessageBox.confirm(`确定删除角色「${row.name}」吗？`, '提示', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await deleteRoleApi(row.id)
+    ElMessage.success('删除成功')
+    await loadData()
+  } catch (err) {
+    if (err === 'cancel' || err === 'close') return
+    ElMessage.error(err.message || '删除失败')
+  }
 }
 
 function handlePermission(row) {
@@ -90,7 +103,7 @@ onMounted(loadData)
   <div class="page-container">
     <div class="page-header">
       <h3 class="page-title">角色管理</h3>
-      <el-button type="primary" @click="handleAdd">
+      <el-button v-if="auth.hasPermission('btn-role-add')" type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>新增角色
       </el-button>
     </div>
@@ -110,9 +123,17 @@ onMounted(loadData)
         <el-table-column prop="createTime" label="创建时间" min-width="170" />
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button link type="primary" @click="handlePermission(row)">权限配置</el-button>
+            <el-button v-if="auth.hasPermission('btn-role-perm')" link type="primary" @click="handlePermission(row)">权限配置</el-button>
             <el-button link type="primary" @click="handleEdit(row)">编辑</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <el-tooltip
+              :disabled="row.userCount === 0"
+              :content="`角色仍被 ${row.userCount} 名用户使用，无法删除`"
+              placement="top"
+            >
+              <span>
+                <el-button link type="danger" :disabled="row.userCount > 0" @click="handleDelete(row)">删除</el-button>
+              </span>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>

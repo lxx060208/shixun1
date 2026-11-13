@@ -4,8 +4,10 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getPermissionTreeApi, getRolePermissionApi, saveRolePermissionApi } from '@/api'
 import { roles } from '@/api/db'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const auth = useAuthStore()
 
 const treeRef = ref()
 const treeData = ref([])
@@ -38,9 +40,17 @@ async function loadPermission(roleCode) {
 async function handleSave() {
   saving.value = true
   try {
-    const checked = treeRef.value.getCheckedKeys(false).concat(treeRef.value.getHalfCheckedKeys())
+    // 只保存完全勾选的节点，父节点的半选状态由子树自动推导，避免回显时把未勾选的子项一起带上
+    const checked = treeRef.value.getCheckedKeys(false)
     await saveRolePermissionApi(selectedRole.value, checked)
-    ElMessage.success('权限配置已保存')
+    // 通知所有会话权限已变更，下次路由跳转时重新加载
+    localStorage.setItem('samp_perm_ver', String(Date.now()))
+    if (selectedRole.value === auth.userInfo?.roleCode) {
+      await auth.refreshPermissions()
+      ElMessage.success('权限配置已保存，当前菜单与按钮已同步更新')
+    } else {
+      ElMessage.success('权限配置已保存，该角色重新登录后生效')
+    }
   } catch (err) {
     ElMessage.error(err.message || '保存失败')
   } finally {

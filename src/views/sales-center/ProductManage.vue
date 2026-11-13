@@ -61,6 +61,11 @@ async function load() {
     summary.onShelf = res.onShelf
     summary.offShelf = res.offShelf
     summary.lowStock = res.lowStock
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载农产品列表失败')
   } finally {

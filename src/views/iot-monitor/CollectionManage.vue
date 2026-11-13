@@ -57,6 +57,11 @@ async function queryHistory() {
   })
   historyRows.value = res.rows
   historyTotal.value = res.total
+  const maxPage = Math.max(1, Math.ceil(res.total / pageSize))
+  if (historyPage.value > maxPage) {
+    historyPage.value = maxPage
+    return queryHistory()
+  }
 }
 
 async function loadAll() {

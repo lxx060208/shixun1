@@ -1,7 +1,10 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getLoginLogsApi, getOperationLogsApi, backupApi, restoreApi } from '@/api'
+import { getLoginLogsApi, getOperationLogsApi, getBackupListApi, backupApi, restoreApi, downloadBackupApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 
 const activeTab = ref('login')
 const loading = ref(false)
@@ -15,10 +18,10 @@ const operationQuery = reactive({ keyword: '', module: '' })
 const loginPage = reactive({ page: 1, pageSize: 5 })
 const operationPage = reactive({ page: 1, pageSize: 5 })
 
-const backupRecords = ref([
-  { file: 'samp_backup_20261031.sql', time: '2026-10-31 23:00:00', size: '32.4 MB' },
-  { file: 'samp_backup_20261024.sql', time: '2026-10-24 23:00:00', size: '30.1 MB' },
-])
+const backupRecords = ref([])
+const backupLoading = ref(false)
+const backingUp = ref(false)
+const restoring = ref(false)
 
 const modules = ['用户管理', '角色权限', '地块档案', '设备控制', '租户管理']
 
@@ -59,23 +62,84 @@ async function loadData() {
   }
 }
 
+// 客户端分页：筛选后若列表变短导致当前页越界，自动回退
+watch([() => loginFiltered.value.length, () => loginPage.pageSize], ([len, size]) => {
+  const maxPage = Math.max(1, Math.ceil(len / size))
+  if (loginPage.page > maxPage) loginPage.page = maxPage
+})
+watch([() => operationFiltered.value.length, () => operationPage.pageSize], ([len, size]) => {
+  const maxPage = Math.max(1, Math.ceil(len / size))
+  if (operationPage.page > maxPage) operationPage.page = maxPage
+})
+
+async function loadBackups() {
+  backupLoading.value = true
+  try {
+    backupRecords.value = await getBackupListApi()
+  } finally {
+    backupLoading.value = false
+  }
+}
+
 async function handleBackup() {
-  const res = await backupApi()
-  backupRecords.value.unshift({ file: res.file, time: res.time, size: '—' })
-  ElMessage.success(`备份完成：${res.file}`)
+  backingUp.value = true
+  try {
+    const res = await backupApi()
+    await loadBackups()
+    ElMessage.success(`备份完成：${res.file}（${res.size}）`)
+  } catch (err) {
+    ElMessage.error(err.message || '备份失败')
+  } finally {
+    backingUp.value = false
+  }
 }
 
-async function handleRestore() {
-  await ElMessageBox.confirm('恢复将覆盖当前数据，确定继续吗？', '风险提示', {
-    confirmButtonText: '继续恢复',
-    cancelButtonText: '取消',
-    type: 'warning',
-  })
-  await restoreApi()
-  ElMessage.success('数据恢复成功')
+async function handleRestore(row) {
+  const target = row || backupRecords.value[0]
+  if (!target) {
+    ElMessage.warning('暂无可恢复的备份文件，请先执行备份')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将使用备份「${target.file}」覆盖当前数据，覆盖后不可撤销，确定继续吗？`,
+      '风险提示',
+      { confirmButtonText: '继续恢复', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  restoring.value = true
+  try {
+    const res = await restoreApi(target.id)
+    await auth.refreshPermissions()
+    await Promise.all([loadData(), loadBackups()])
+    ElMessage.success(`数据已恢复到 ${res.time} 的备份：${res.file}`)
+  } catch (err) {
+    ElMessage.error(err.message || '恢复失败')
+  } finally {
+    restoring.value = false
+  }
 }
 
-onMounted(loadData)
+async function handleDownload(row) {
+  try {
+    const { file, content } = await downloadBackupApi(row.id)
+    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = file
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    ElMessage.error(err.message || '下载失败')
+  }
+}
+
+onMounted(() => {
+  loadData()
+  loadBackups()
+})
 </script>
 
 <template>
@@ -151,16 +215,28 @@ onMounted(loadData)
 
         <el-tab-pane label="数据备份" name="backup">
           <div class="backup-actions">
-            <el-button type="primary" @click="handleBackup"><el-icon><Download /></el-icon>立即备份</el-button>
-            <el-button type="warning" @click="handleRestore"><el-icon><RefreshLeft /></el-icon>恢复最近备份</el-button>
+            <el-button type="primary" :loading="backingUp" @click="handleBackup">
+              <el-icon><Download /></el-icon>立即备份
+            </el-button>
+            <el-button type="warning" :loading="restoring" :disabled="!backupRecords.length" @click="handleRestore()">
+              <el-icon><RefreshLeft /></el-icon>恢复最近备份
+            </el-button>
+            <span class="backup-tip">备份内容为当前全库数据快照，最多保留 10 份</span>
           </div>
-          <el-table :data="backupRecords" border stripe>
+          <el-table
+            v-loading="backupLoading"
+            :data="backupRecords"
+            border
+            stripe
+            empty-text="暂无备份文件，请点击「立即备份」生成"
+          >
             <el-table-column prop="file" label="备份文件" min-width="280" />
             <el-table-column prop="time" label="备份时间" min-width="180" />
             <el-table-column prop="size" label="文件大小" min-width="120" />
-            <el-table-column label="操作" width="120">
-              <template #default>
-                <el-button link type="primary">下载</el-button>
+            <el-table-column label="操作" width="160">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="handleDownload(row)">下载</el-button>
+                <el-button link type="warning" @click="handleRestore(row)">恢复</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -178,5 +254,13 @@ onMounted(loadData)
 
 .backup-actions {
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backup-tip {
+  color: #909399;
+  font-size: 12px;
 }
 </style>

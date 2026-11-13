@@ -11,7 +11,8 @@ const request = axios.create({
 // 请求拦截：注入 Token 鉴权头
 request.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('samp_token')
+    // 登录态保存在 sessionStorage（关闭浏览器即失效）
+    const token = sessionStorage.getItem('samp_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }

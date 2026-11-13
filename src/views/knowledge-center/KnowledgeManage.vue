@@ -66,6 +66,11 @@ async function loadArticles() {
     articleTotal.value = res.total
     articleCategories.value = res.categories
     Object.assign(articleStats, res.stats)
+    const maxPage = Math.max(1, Math.ceil(res.total / articlePageSize.value))
+    if (articlePage.value > maxPage) {
+      articlePage.value = maxPage
+      return loadArticles()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载知识条目失败')
   } finally {
@@ -321,6 +326,11 @@ async function loadExperts() {
     expertTotal.value = res.total
     expertFields.value = res.fields
     pendingExpertCount.value = res.pendingCount
+    const maxPage = Math.max(1, Math.ceil(res.total / expertPageSize.value))
+    if (expertPage.value > maxPage) {
+      expertPage.value = maxPage
+      return loadExperts()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载专家列表失败')
   } finally {

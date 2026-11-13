@@ -67,6 +67,11 @@ async function loadStock() {
     stockList.value = res.list
     stockTotal.value = res.total
     lowStockCount.value = res.lowStockCount
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return loadStock()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载库存失败')
   } finally {
@@ -177,6 +182,11 @@ async function loadPurchases() {
     purchaseList.value = res.list
     purchaseTotal.value = res.total
     totalAmount.value = res.totalAmount
+    const maxPage = Math.max(1, Math.ceil(res.total / purchasePageSize.value))
+    if (purchasePage.value > maxPage) {
+      purchasePage.value = maxPage
+      return loadPurchases()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载采购记录失败')
   } finally {

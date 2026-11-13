@@ -41,6 +41,11 @@ async function load() {
     crops.value = res.crops
     counts.diseaseCount = res.diseaseCount
     counts.insectCount = res.insectCount
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载病虫害图库失败')
   } finally {

@@ -45,6 +45,12 @@ async function load() {
     const res = await getFarmOrdersApi({ ...filters, page: page.value, pageSize: pageSize.value })
     list.value = res.list
     total.value = res.total
+    // 删除末页最后一条记录后自动回退到有效页码，避免显示空表
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载工单失败')
   } finally {

@@ -11,6 +11,7 @@ import {
   notifications,
   rolePermissions,
   persist,
+  db,
 } from './db'
 import {
   dashboardStats,
@@ -86,7 +87,7 @@ const nextId = (list) => list.reduce((max, item) => Math.max(max, item.id || 0),
 // 去除密码字段，避免敏感信息返回给前端
 const stripPassword = (u) => {
   if (!u) return null
-  const { password, ...safe } = u
+  const { password, failedAttempts, lockedUntil, ...safe } = u
   return safe
 }
 
@@ -124,22 +125,89 @@ function recordLoginLog(username, name, status) {
   persist()
 }
 
+// 取当前登录操作人，用于写入操作日志（日志跟随业务操作一同落盘）
+function currentOperator() {
+  try {
+    const u = JSON.parse(sessionStorage.getItem('samp_user') || 'null')
+    return { username: u?.username || 'system', name: u?.name || '系统' }
+  } catch {
+    return { username: 'system', name: '系统' }
+  }
+}
+
+function recordOperationLog(module, operation, content) {
+  const operator = currentOperator()
+  operationLogs.unshift({
+    id: nextId(operationLogs),
+    username: operator.username,
+    name: operator.name,
+    module,
+    operation,
+    content,
+    ip: '127.0.0.1',
+    time: now(),
+  })
+}
+
 /* ------------------------- 认证 ------------------------- */
+// 登录防暴力破解策略：连续失败 5 次锁定账号 10 分钟，连续失败 3 次起升级验证码难度
+const MAX_LOGIN_ATTEMPTS = 5
+const LOCK_MINUTES = 10
+export const CAPTCHA_ESCALATE_AT = 3
+
+const loginError = (message, extra = {}) => Object.assign(new Error(message), extra)
+
 export async function loginApi({ username, password }) {
   await delay(500)
   const user = users.find((u) => u.username === username)
   if (!user) {
     recordLoginLog(username, '', 0)
-    throw new Error('账号不存在或已被停用')
+    throw loginError('账号不存在或已被停用')
   }
   if (user.status !== 1) {
     recordLoginLog(user.username, user.name, 0)
-    throw new Error('账号不存在或已被停用')
+    throw loginError('账号不存在或已被停用')
   }
-  if (password !== (user.password || '123456')) {
+
+  // 锁定期内即使密码正确也拒绝登录
+  if (user.lockedUntil && Date.now() < user.lockedUntil) {
     recordLoginLog(user.username, user.name, 0)
-    throw new Error('密码错误')
+    const remain = Math.ceil((user.lockedUntil - Date.now()) / 60000)
+    throw loginError(`账号已锁定，请 ${remain} 分钟后再试`, {
+      code: 'ACCOUNT_LOCKED',
+      failedAttempts: user.failedAttempts || MAX_LOGIN_ATTEMPTS,
+    })
   }
+  // 锁定期已过，重新计数
+  if (user.lockedUntil && Date.now() >= user.lockedUntil) {
+    user.lockedUntil = 0
+    user.failedAttempts = 0
+  }
+
+  if (password !== (user.password || '123456')) {
+    user.failedAttempts = (user.failedAttempts || 0) + 1
+    const attempts = user.failedAttempts
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      user.lockedUntil = Date.now() + LOCK_MINUTES * 60 * 1000
+      persist()
+      recordLoginLog(user.username, user.name, 0)
+      throw loginError(`密码连续错误 ${MAX_LOGIN_ATTEMPTS} 次，账号已锁定 ${LOCK_MINUTES} 分钟`, {
+        code: 'ACCOUNT_LOCKED',
+        failedAttempts: attempts,
+      })
+    }
+    persist()
+    recordLoginLog(user.username, user.name, 0)
+    throw loginError(`密码错误，您还可尝试 ${MAX_LOGIN_ATTEMPTS - attempts} 次，超过将锁定账号`, {
+      code: 'PASSWORD_ERROR',
+      failedAttempts: attempts,
+    })
+  }
+
+  // 登录成功：清除失败计数与锁定状态
+  user.failedAttempts = 0
+  user.lockedUntil = 0
+  persist()
   recordLoginLog(user.username, user.name, 1)
   return {
     token: `mock-token-${user.id}-${Date.now()}`,
@@ -149,7 +217,10 @@ export async function loginApi({ username, password }) {
 
 export async function getUserInfoApi(id) {
   await delay()
-  return stripPassword(users.find((u) => u.id === id))
+  const user = users.find((u) => u.id === id)
+  if (!user) throw new Error('用户不存在')
+  if (user.status !== 1) throw new Error('账号已被停用')
+  return stripPassword(user)
 }
 
 export async function resetPasswordApi({ username, phone, newPassword }) {
@@ -158,6 +229,12 @@ export async function resetPasswordApi({ username, phone, newPassword }) {
   if (!user) throw new Error('账号不存在')
   if (user.phone !== phone) throw new Error('预留手机号不匹配')
   user.password = newPassword
+  // 重置密码同样使所有已签发 token 失效
+  user.passwordChangedAt = Date.now()
+  // 重置密码后解除失败计数与锁定，避免用户被永久锁死
+  user.failedAttempts = 0
+  user.lockedUntil = 0
+  user.mustChangePassword = false
   persist()
   return { success: true }
 }
@@ -179,7 +256,23 @@ export async function changePasswordApi({ id, oldPassword, newPassword }) {
   const user = users.find((u) => u.id === id)
   if (!user) throw new Error('用户不存在')
   if (oldPassword !== (user.password || '123456')) throw new Error('当前密码错误')
+  // 后端与前端保持一致的密码强度校验
+  if (!newPassword) throw new Error('新密码不能为空')
+  if (newPassword.length < 8 || newPassword.length > 20) throw new Error('新密码长度须为 8-20 位')
+  if (newPassword === oldPassword) throw new Error('新密码不能与当前密码相同')
+  const classes = [
+    /[a-z]/.test(newPassword),
+    /[A-Z]/.test(newPassword),
+    /\d/.test(newPassword),
+    /[^A-Za-z0-9]/.test(newPassword),
+  ].filter(Boolean).length
+  if (classes < 3) throw new Error('新密码强度不足：至少包含小写字母、大写字母、数字、特殊符号中的 3 类')
+
   user.password = newPassword
+  // 记录改密时间：签发时间早于该时刻的旧 token 全部失效（含其他设备会话）
+  user.passwordChangedAt = Date.now()
+  // 已修改初始密码，解除首次登录强制改密标记
+  user.mustChangePassword = false
   persist()
   return { success: true }
 }
@@ -216,29 +309,51 @@ export async function getUserListApi() {
 export async function saveUserApi(payload) {
   await delay()
   const { password, ...data } = payload
+  const username = (data.username || '').trim()
+  if (!username) throw new Error('用户名不能为空')
+  // 用户名全局唯一（不区分大小写），避免登录时按顺序命中造成身份混淆
+  const duplicated = users.some(
+    (u) => u.username.toLowerCase() === username.toLowerCase() && u.id !== data.id,
+  )
+  if (duplicated) throw new Error(`用户名「${username}」已存在，请更换`)
+  data.username = username
   if (data.id) {
     const idx = users.findIndex((u) => u.id === data.id)
-    if (idx > -1) users[idx] = { ...users[idx], ...data }
+    if (idx > -1) {
+      users[idx] = { ...users[idx], ...data }
+      recordOperationLog('用户管理', '编辑用户', `修改用户「${users[idx].name}（${users[idx].username}）」的信息`)
+    }
     persist()
     return stripPassword(users[idx])
+  }
+  // 新增用户必须由管理员设置初始密码，并标记首次登录强制修改
+  if (!/^(?=.*[A-Za-z])(?=.*\d)[\w!@#$%^&*]{8,20}$/.test(password || '')) {
+    throw new Error('初始密码需为 8-20 位且同时包含字母和数字')
   }
   const record = {
     ...data,
     id: nextId(users),
-    password: '123456',
+    password,
+    mustChangePassword: true,
     avatar: '',
     status: data.status ?? 1,
     createTime: now(),
   }
   users.unshift(record)
+  recordOperationLog('用户管理', '新增用户', `新增用户「${record.name}（${record.username}）」`)
   persist()
   return stripPassword(record)
 }
 
-export async function deleteUserApi(id) {
+export async function deleteUserApi(id, currentUserId) {
   await delay()
+  // 禁止删除当前登录账号，避免删除后会话失效且无法找回
+  if (currentUserId && id === currentUserId) throw new Error('不能删除当前登录账号')
   const idx = users.findIndex((u) => u.id === id)
-  if (idx > -1) users.splice(idx, 1)
+  if (idx > -1) {
+    const [removed] = users.splice(idx, 1)
+    recordOperationLog('用户管理', '删除用户', `删除用户「${removed.name}（${removed.username}）」`)
+  }
   persist()
   return { success: true }
 }
@@ -253,20 +368,34 @@ export async function saveRoleApi(payload) {
   await delay()
   if (payload.id) {
     const idx = roles.findIndex((r) => r.id === payload.id)
-    if (idx > -1) roles[idx] = { ...roles[idx], ...payload }
+    if (idx > -1) {
+      roles[idx] = { ...roles[idx], ...payload }
+      recordOperationLog('角色权限', '编辑角色', `修改角色「${roles[idx].name}（${roles[idx].code}）」`)
+    }
     persist()
     return { ...roles[idx] }
   }
   const record = { ...payload, id: nextId(roles), createTime: now() }
   roles.push(record)
+  recordOperationLog('角色权限', '新增角色', `新增角色「${record.name}（${record.code}）」`)
   persist()
   return { ...record }
 }
 
 export async function deleteRoleApi(id) {
   await delay()
+  const role = roles.find((r) => r.id === id)
+  if (!role) throw new Error('角色不存在')
+  // 仍被用户引用的角色不允许删除，避免用户角色编码悬空导致权限判定异常
+  const usedCount = users.filter((u) => u.roleCode === role.code).length
+  if (usedCount > 0) {
+    throw new Error(`角色「${role.name}」仍被 ${usedCount} 名用户使用，无法删除`)
+  }
   const idx = roles.findIndex((r) => r.id === id)
   if (idx > -1) roles.splice(idx, 1)
+  recordOperationLog('角色权限', '删除角色', `删除角色「${role.name}（${role.code}）」`)
+  // 同步清理该角色的权限配置，避免残留脏数据
+  delete rolePermissions[role.code]
   persist()
   return { success: true }
 }
@@ -285,6 +414,8 @@ export async function getRolePermissionApi(roleCode) {
 export async function saveRolePermissionApi(roleCode, checkedKeys) {
   await delay()
   rolePermissions[roleCode] = checkedKeys
+  const roleName = roles.find((r) => r.code === roleCode)?.name || roleCode
+  recordOperationLog('角色权限', '修改权限', `调整「${roleName}」角色的权限，共 ${checkedKeys.length} 项`)
   persist()
   return { success: true }
 }
@@ -297,22 +428,74 @@ export async function getTenantListApi() {
 
 export async function saveTenantApi(payload) {
   await delay()
+  const code = (payload.code || '').trim()
+  if (!code) throw new Error('租户编码不能为空')
+  // 租户编码全局唯一（不区分大小写），避免后续按编码识别租户时产生数据归属歧义
+  const duplicated = tenants.some(
+    (t) => t.code.toLowerCase() === code.toLowerCase() && t.id !== payload.id,
+  )
+  if (duplicated) throw new Error(`租户编码「${code}」已存在，请更换`)
   if (payload.id) {
     const idx = tenants.findIndex((t) => t.id === payload.id)
-    if (idx > -1) tenants[idx] = { ...tenants[idx], ...payload }
+    if (idx > -1) {
+      tenants[idx] = { ...tenants[idx], ...payload, code }
+      recordOperationLog('租户管理', '编辑租户', `修改租户「${tenants[idx].name}（${code}）」`)
+    }
     persist()
     return { ...tenants[idx] }
   }
-  const record = { ...payload, id: nextId(tenants), createTime: now() }
+  const record = { ...payload, code, id: nextId(tenants), createTime: now() }
   tenants.unshift(record)
+  recordOperationLog('租户管理', '新增租户', `新增租户「${record.name}（${code}）」`)
   persist()
   return { ...record }
 }
 
 export async function deleteTenantApi(id) {
   await delay()
+  const tenant = tenants.find((t) => t.id === id)
+  if (!tenant) throw new Error('租户不存在')
+
+  // 检查所有与租户名称相关联的业务数据，阻断删除以避免产生无归属的孤立数据
+  const refs = []
+  const T = tenant.name
+
+  // 1. 园区概览与 GIS 数据
+  const parkCount = parkSummaries.filter((p) => p.name === T).length
+  if (parkCount) refs.push(`园区概览 ${parkCount} 条`)
+  const gisCount = gisParks.filter((p) => p.name === T).length
+  if (gisCount) refs.push(`GIS 园区 ${gisCount} 条`)
+
+  // 2. 设备与远程控制
+  const devCount = controlDeviceGroups.filter((g) => g.park === T).length
+  if (devCount) refs.push(`设备控制台 ${devCount} 组`)
+
+  // 3. 告警数据
+  const alarmRt = alarmRealtimeList.filter((a) => a.park === T).length
+  if (alarmRt) refs.push('实时告警')
+  const alarmHis = alarmHistoryList.filter((a) => a.park === T).length
+  if (alarmHis) refs.push(`历史告警 ${alarmHis} 条`)
+
+  // 4. 产销对接（农产品 + 其关联订单）
+  const prodCount = salesProducts.filter((p) => p.park === T).length
+  if (prodCount) refs.push(`农产品 ${prodCount} 个`)
+  const prodIds = salesProducts.filter((p) => p.park === T).map((p) => p.id)
+  const orderCount = salesOrders.filter((o) => prodIds.includes(o.productId)).length
+  if (orderCount) refs.push(`销售订单 ${orderCount} 单`)
+
+  // 5. 农事数据
+  const plotCount = farmPlots.filter((p) => p.location === T).length
+  if (plotCount) refs.push(`地块档案 ${plotCount} 块`)
+
+  if (refs.length > 0) {
+    throw new Error(
+      `租户「${T}」名下仍有 ${refs.join('、')} 等业务数据，请先处理迁移后再删除`,
+    )
+  }
+
   const idx = tenants.findIndex((t) => t.id === id)
-  if (idx > -1) tenants.splice(idx, 1)
+  const [removed] = tenants.splice(idx, 1)
+  recordOperationLog('租户管理', '删除租户', `删除租户「${removed.name}」(联系人 ${removed.contact})`)
   persist()
   return { success: true }
 }
@@ -328,14 +511,101 @@ export async function getOperationLogsApi() {
   return operationLogs.map((l) => ({ ...l }))
 }
 
-export async function backupApi() {
-  await delay(600)
-  return { file: 'samp_backup_20261103.sql', time: now() }
+// 备份文件存放在独立的 localStorage 键中，内容为整库 JSON 快照
+const BACKUP_KEY = 'samp_db_backups'
+const BACKUP_LIMIT = 10
+
+function readBackups() {
+  try {
+    const list = JSON.parse(localStorage.getItem(BACKUP_KEY) || '[]')
+    return Array.isArray(list) ? list : []
+  } catch {
+    return []
+  }
 }
 
-export async function restoreApi() {
+function formatSize(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(2)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
+
+function backupFileName(d = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `samp_backup_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.json`
+}
+
+export async function getBackupListApi() {
+  await delay()
+  return readBackups().map(({ id, file, time, size }) => ({ id, file, time, size }))
+}
+
+export async function backupApi() {
   await delay(600)
-  return { success: true }
+  // 真实快照：把当前整库序列化成备份文件内容
+  const snapshot = JSON.stringify(db)
+  const bytes = new Blob([snapshot]).size
+  const record = {
+    id: `bk_${Date.now()}`,
+    file: backupFileName(),
+    time: now(),
+    size: formatSize(bytes),
+    snapshot,
+  }
+  let list = [record, ...readBackups()].slice(0, BACKUP_LIMIT)
+  // 本地存储空间不足时逐步丢弃最旧的备份，保证本次备份可用
+  while (list.length) {
+    try {
+      localStorage.setItem(BACKUP_KEY, JSON.stringify(list))
+      break
+    } catch {
+      list = list.slice(0, list.length - 1)
+    }
+  }
+  if (!list.length) throw new Error('本地存储空间不足，备份失败')
+  const { snapshot: _snapshot, ...meta } = record
+  return meta
+}
+
+export async function restoreApi(backupId) {
+  await delay(600)
+  const list = readBackups()
+  if (!list.length) throw new Error('暂无可恢复的备份文件')
+  const target = backupId ? list.find((b) => b.id === backupId) : list[0]
+  if (!target) throw new Error('备份文件不存在或已被删除')
+
+  let data
+  try {
+    data = JSON.parse(target.snapshot)
+  } catch {
+    throw new Error('备份文件已损坏，无法恢复')
+  }
+  if (!data || !Array.isArray(data.users) || data.users.length === 0) {
+    throw new Error('备份文件内容无效，无法恢复')
+  }
+
+  // 原地回写各数据表（保持其它模块已引用的数组对象不变）
+  const clone = (v) => JSON.parse(JSON.stringify(v))
+  const tables = ['users', 'roles', 'tenants', 'loginLogs', 'operationLogs', 'rolePermissions', 'notifications']
+  tables.forEach((key) => {
+    if (Array.isArray(data[key]) && Array.isArray(db[key])) {
+      db[key].splice(0, db[key].length, ...clone(data[key]))
+    } else if (data[key] && typeof data[key] === 'object' && db[key] && typeof db[key] === 'object') {
+      Object.keys(db[key]).forEach((k) => delete db[key][k])
+      Object.assign(db[key], clone(data[key]))
+    }
+  })
+  persist()
+  // 权限配置可能被还原，通知权限模块重新加载
+  localStorage.setItem('samp_perm_ver', String(Date.now()))
+  return { success: true, file: target.file, time: target.time }
+}
+
+export async function downloadBackupApi(backupId) {
+  await delay()
+  const target = readBackups().find((b) => b.id === backupId)
+  if (!target) throw new Error('备份文件不存在或已被删除')
+  return { file: target.file, content: target.snapshot }
 }
 
 /* ------------------------- 数据展示 ------------------------- */

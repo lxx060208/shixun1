@@ -71,6 +71,11 @@ async function load() {
     list.value = res.list
     total.value = res.total
     Object.assign(analysis, res.analysis)
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载客户档案失败')
   } finally {

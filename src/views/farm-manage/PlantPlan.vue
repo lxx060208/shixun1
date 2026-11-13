@@ -49,6 +49,11 @@ async function load() {
     const res = await getFarmPlansApi({ ...filters, page: page.value, pageSize: pageSize.value })
     list.value = res.list
     total.value = res.total
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '加载种植计划失败')
   } finally {

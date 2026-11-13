@@ -50,6 +50,11 @@ async function load() {
     const res = await getAlarmHistoryApi({ ...buildParams(), page: page.value, pageSize: pageSize.value })
     list.value = res.list
     total.value = res.total
+    const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
+    if (page.value > maxPage) {
+      page.value = maxPage
+      return load()
+    }
   } catch (e) {
     ElMessage.error(e.message || '查询告警历史失败')
   } finally {

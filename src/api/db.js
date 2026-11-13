@@ -37,27 +37,41 @@ const buildSeedDB = () => ({
   rolePermissions: JSON.parse(JSON.stringify(seedRolePermissions)),
 })
 
+// 种子数据 schema 版本号，用于驱动角色权限等字典类数据的增量升级
+// 升级规则：每个角色的权限点数量 ≥ 种子数量时，保留用户自定义的权限配置；
+//          若种子里更多（说明代码升级后新增了模块权限），则用种子覆盖旧值
+const SCHEMA_VER = 2
+
 function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY)
     if (raw) {
       const data = JSON.parse(raw)
       const seed = buildSeedDB()
-      // 兼容旧版本：缺失的表用种子兜底，密码字段补全
+      const savedVer = Number(data.__schemaVer || 1)
+      // 增量升级 rolePermissions：用种子中新增的权限点补齐旧数据
+      const rp = { ...(data.rolePermissions || {}) }
+      Object.entries(seed.rolePermissions).forEach(([roleCode, seedPerms]) => {
+        const saved = rp[roleCode] || []
+        // 种子里有权限而持久化里缺失的（代码升级新增的模块权限点），需要补齐
+        const merged = [...new Set([...saved, ...seedPerms])]
+        rp[roleCode] = merged
+      })
       return {
+        __schemaVer: SCHEMA_VER,
         users: normalizeUsers(data.users || seed.users),
         roles: data.roles || seed.roles,
         tenants: data.tenants || seed.tenants,
         loginLogs: data.loginLogs || seed.loginLogs,
         operationLogs: data.operationLogs || seed.operationLogs,
         notifications: { ...seed.notifications, ...(data.notifications || {}) },
-        rolePermissions: data.rolePermissions || seed.rolePermissions,
+        rolePermissions: rp,
       }
     }
   } catch (e) {
     console.warn('[db] 数据库数据解析失败，已重建', e)
   }
-  return buildSeedDB()
+  return { __schemaVer: SCHEMA_VER, ...buildSeedDB() }
 }
 
 export const db = loadDB()
