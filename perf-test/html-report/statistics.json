@@ -1,0 +1,50 @@
+{
+  "Total" : {
+    "transaction" : "Total",
+    "sampleCount" : 25549,
+    "errorCount" : 0,
+    "errorPct" : 0.0,
+    "meanResTime" : 107.82351559747916,
+    "medianResTime" : 108.0,
+    "minResTime" : 54.0,
+    "maxResTime" : 164.0,
+    "pct1ResTime" : 153.0,
+    "pct2ResTime" : 155.0,
+    "pct3ResTime" : 157.0,
+    "throughput" : 425.40544140664025,
+    "receivedKBytesPerSec" : 703.1889518517517,
+    "sentKBytesPerSec" : 122.91119886193347
+  },
+  "01 登录认证" : {
+    "transaction" : "01 登录认证",
+    "sampleCount" : 12788,
+    "errorCount" : 0,
+    "errorPct" : 0.0,
+    "meanResTime" : 108.09931185486435,
+    "medianResTime" : 108.0,
+    "minResTime" : 57.0,
+    "maxResTime" : 164.0,
+    "pct1ResTime" : 153.0,
+    "pct2ResTime" : 155.0,
+    "pct3ResTime" : 157.0,
+    "throughput" : 212.92750341336708,
+    "receivedKBytesPerSec" : 195.66873116404142,
+    "sentKBytesPerSec" : 51.776316747976956
+  },
+  "02 告警历史分页查询" : {
+    "transaction" : "02 告警历史分页查询",
+    "sampleCount" : 12761,
+    "errorCount" : 0,
+    "errorPct" : 0.0,
+    "meanResTime" : 107.54713580440361,
+    "medianResTime" : 108.0,
+    "minResTime" : 54.0,
+    "maxResTime" : 160.0,
+    "pct1ResTime" : 153.0,
+    "pct2ResTime" : 155.0,
+    "pct3ResTime" : 156.0,
+    "throughput" : 213.04551070152593,
+    "receivedKBytesPerSec" : 508.8759126191609,
+    "sentKBytesPerSec" : 71.32489816020568
+  }
+}
