@@ -1,14 +1,17 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getOverviewApi } from '@/api/iot'
+import { getOverviewApi, parks } from '@/api/iot'
 import TrendChart from '@/components/TrendChart.vue'
 
 const router = useRouter()
 
 const loading = ref(true)
 const data = ref(null)
+const currentPark = ref('all')
+
+const currentParkName = computed(() => parks.find((p) => p.id === currentPark.value)?.name || '全部园区')
 
 const detailRoutes = {
   air: '/iot-monitor/collection?type=air',
@@ -23,8 +26,13 @@ function goDetail(key) {
 
 async function load() {
   loading.value = true
-  data.value = await getOverviewApi()
+  data.value = await getOverviewApi(currentPark.value)
   loading.value = false
+}
+
+function onParkChange() {
+  load()
+  ElMessage.success('已切换园区')
 }
 
 function refresh() {
@@ -34,6 +42,10 @@ function refresh() {
 
 function statusType(s) {
   return s === 'warn' ? 'warning' : 'success'
+}
+
+function deviceStatusType(s) {
+  return s === 'online' ? 'success' : 'info'
 }
 
 onMounted(load)
@@ -47,6 +59,13 @@ onMounted(load)
         <p class="page-subtitle">空气 · 土壤 · 水体 · 气象多维数据实时汇总</p>
       </div>
       <el-button :icon="'Refresh'" @click="refresh">刷新数据</el-button>
+    </div>
+
+    <div class="park-bar">
+      <span class="park-bar-label">园区切换</span>
+      <el-radio-group v-model="currentPark" @change="onParkChange">
+        <el-radio-button v-for="p in parks" :key="p.id" :value="p.id">{{ p.name }}</el-radio-button>
+      </el-radio-group>
     </div>
 
     <template v-if="data">
@@ -77,6 +96,30 @@ onMounted(load)
           </div>
         </el-col>
       </el-row>
+
+      <!-- 设备列表 -->
+      <el-card shadow="never" class="device-card">
+        <template #header>
+          <div class="card-head">
+            <div>
+              <span class="panel-title">园区设备</span>
+              <p class="card-sub">{{ currentParkName }} · 共 {{ data.devices.length }} 台设备</p>
+            </div>
+          </div>
+        </template>
+        <el-table :data="data.devices" stripe style="width: 100%">
+          <el-table-column prop="name" label="设备名称" min-width="140" />
+          <el-table-column prop="typeName" label="类型" width="90" />
+          <el-table-column prop="location" label="安装位置" min-width="130" />
+          <el-table-column prop="parkName" label="所属园区" min-width="160" />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <el-tag :type="deviceStatusType(row.status)" effect="light">{{ row.status === 'online' ? '在线' : '掉线' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="lastOnline" label="最近在线" min-width="150" />
+        </el-table>
+      </el-card>
 
       <!-- 分类指标卡片 -->
       <el-row :gutter="16">
@@ -114,7 +157,7 @@ onMounted(load)
           <div class="card-head">
             <div>
               <span class="panel-title">最近 24 小时趋势</span>
-              <p class="card-sub">空气温度 & 土壤湿度</p>
+              <p class="card-sub">{{ currentParkName }} · 监测指标趋势</p>
             </div>
             <div class="legend">
               <span v-for="s in data.trend.series" :key="s.name" class="legend-item">
@@ -134,6 +177,30 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.park-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.park-bar-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--samp-text-secondary);
+  white-space: nowrap;
+}
+
+.device-card {
+  margin-bottom: 16px;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--samp-text-main);
 }
 
 .kpi-row {

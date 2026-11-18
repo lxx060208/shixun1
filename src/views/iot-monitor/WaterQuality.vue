@@ -1,16 +1,32 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getWaterApi } from '@/api/iot'
+import { getWaterApi, getWaterPointsApi, DO_THRESHOLD } from '@/api/iot'
 import TrendChart from '@/components/TrendChart.vue'
 
 const loading = ref(true)
 const data = ref(null)
+const points = ref([])
+const pointId = ref('P1')
+
+const doMetric = computed(() => data.value?.metrics.find((m) => m.label === '溶解氧'))
+
+async function loadPoints() {
+  points.value = await getWaterPointsApi()
+}
 
 async function load() {
   loading.value = true
-  data.value = await getWaterApi()
+  data.value = await getWaterApi(pointId.value)
   loading.value = false
+}
+
+async function changePoint() {
+  await load()
+  const p = points.value.find((x) => x.id === pointId.value)
+  if (p?.overAlarm) {
+    ElMessage.warning(`${p.name}：溶解氧 ${p.do} mg/L，低于阈值 ${DO_THRESHOLD} mg/L`)
+  }
 }
 
 function refresh() {
@@ -18,9 +34,10 @@ function refresh() {
   ElMessage.success('已刷新水质数据')
 }
 
-const statusType = (s) => (s === 'warn' ? 'warning' : 'success')
-
-onMounted(load)
+onMounted(async () => {
+  await loadPoints()
+  await load()
+})
 </script>
 
 <template>
@@ -33,13 +50,43 @@ onMounted(load)
       <el-button :icon="'Refresh'" @click="refresh">刷新数据</el-button>
     </div>
 
+    <div class="point-bar">
+      <span class="point-bar-label">监测点</span>
+      <el-select v-model="pointId" style="width: 300px" @change="changePoint">
+        <el-option
+          v-for="p in points"
+          :key="p.id"
+          :value="p.id"
+          :label="`${p.name} · 溶氧 ${p.do} mg/L`"
+        >
+          <div class="opt-row">
+            <span class="opt-name">{{ p.name }}</span>
+            <span class="opt-do">溶氧 {{ p.do }} mg/L</span>
+            <el-tag v-if="p.overAlarm" type="danger" size="small" effect="light">超标</el-tag>
+          </div>
+        </el-option>
+      </el-select>
+    </div>
+
     <template v-if="data">
+      <!-- 超标告警 -->
+      <el-alert
+        v-if="data.doAlarm"
+        type="error"
+        show-icon
+        :closable="false"
+        class="alarm-alert"
+        :title="`告警：${data.point.name} 溶解氧 ${doMetric.value} mg/L，低于阈值 ${data.threshold} mg/L，请及时增氧处理`"
+      />
+
       <!-- 指标卡片 -->
       <el-row :gutter="16">
         <el-col v-for="m in data.metrics" :key="m.label" :xs="12" :sm="8" :md="6" :lg="4">
-          <div class="metric-card">
+          <div class="metric-card" :class="{ 'is-alarm': m.alarm }">
             <span class="m-label">{{ m.label }}</span>
-            <span class="m-value">{{ m.value }}<em>{{ m.unit }}</em></span>
+            <span class="m-value" :class="{ 'alarm-value': m.alarm }">{{ m.value }}<em>{{ m.unit }}</em></span>
+            <span v-if="m.threshold" class="m-threshold">阈值 {{ m.threshold }} {{ m.unit }}</span>
+            <el-tag v-if="m.alarm" type="danger" size="small" effect="dark">超标</el-tag>
           </div>
         </el-col>
       </el-row>
@@ -66,13 +113,13 @@ onMounted(load)
           <el-card shadow="never" class="chart-card">
             <template #header><span class="panel-title">水质安全等级</span></template>
             <div class="grade-box">
-              <div class="grade-ring">
-                <span class="grade-num">Ⅱ</span>
+              <div class="grade-ring" :class="{ 'grade-ring-alarm': data.doAlarm }">
+                <span class="grade-num">{{ data.grade.num }}</span>
                 <em>类水</em>
               </div>
               <div class="grade-info">
-                <p>水体综合状态良好，氨氮略偏高，建议关注施肥与排水。</p>
-                <el-tag type="warning" effect="light">氨氮接近阈值</el-tag>
+                <p>{{ data.grade.desc }}</p>
+                <el-tag :type="data.grade.tagType" effect="light">{{ data.grade.tag }}</el-tag>
               </div>
             </div>
           </el-card>
@@ -95,6 +142,14 @@ onMounted(load)
 <style scoped>
 .page-header { display: flex; align-items: center; justify-content: space-between; }
 
+.point-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.point-bar-label { font-size: 14px; font-weight: 600; color: var(--samp-text-secondary); white-space: nowrap; }
+.opt-row { display: flex; align-items: center; gap: 8px; }
+.opt-name { font-weight: 600; }
+.opt-do { color: var(--samp-text-secondary); font-size: 12px; }
+
+.alarm-alert { margin-bottom: 16px; }
+
 .metric-card {
   display: flex; flex-direction: column; gap: 8px; padding: 18px 16px; margin-bottom: 16px;
   background: #fff; border: 1px solid var(--samp-border); border-radius: 14px;
@@ -106,9 +161,16 @@ onMounted(load)
 .metric-card:nth-child(4) { border-top-color:#e11d48; background:linear-gradient(160deg,#fff1f2,#fff 70%); }
 .metric-card:nth-child(5) { border-top-color:#0891b2; background:linear-gradient(160deg,#ecfeff,#fff 70%); }
 .metric-card:nth-child(6) { border-top-color:#2563eb; background:linear-gradient(160deg,#eff6ff,#fff 70%); }
+.metric-card.is-alarm {
+  border-color: #fecdd3;
+  border-top-color: #e11d48 !important;
+  background: linear-gradient(160deg, #fff1f2, #fff 70%) !important;
+}
 .m-label { font-size: 14px; font-weight: 600; color: var(--samp-text-secondary); }
 .m-value { font-size: 28px; font-weight: 800; color: var(--samp-text-main); }
 .m-value em { font-style: normal; font-size: 13px; font-weight: 500; color: var(--samp-text-secondary); margin-left: 3px; }
+.alarm-value { color: #e11d48; }
+.m-threshold { font-size: 12px; color: var(--samp-text-secondary); }
 
 .chart-card { margin-bottom: 16px; }
 .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
@@ -122,6 +184,7 @@ onMounted(load)
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: #fff; background: linear-gradient(135deg, #0ea5e9, #0284c7);
 }
+.grade-ring.grade-ring-alarm { background: linear-gradient(135deg, #f43f5e, #be123c); }
 .grade-num { font-size: 28px; font-weight: 700; line-height: 1; }
 .grade-ring em { font-style: normal; font-size: 12px; margin-top: 2px; }
 .grade-info p { margin: 0 0 10px; font-size: 13px; color: var(--samp-text-secondary); line-height: 1.6; }
