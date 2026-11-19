@@ -13,7 +13,7 @@ const collapsed = ref(false)
 
 // 站内消息：工单指派等定向通知
 const messages = ref([])
-const msgPopoverVisible = ref(false)
+const msgVisible = ref(false)
 const unreadCount = computed(() => messages.value.filter((m) => !m.read).length)
 
 async function loadMessages() {
@@ -32,14 +32,15 @@ async function markAllRead() {
   } catch { /* 忽略 */ }
 }
 
-// 点击消息：标记已读并跳转到对应页面
-async function goMessage(m) {
-  try {
-    await markMessagesReadApi([m.id])
+async function openMessage(m) {
+  if (!m.read) {
     m.read = true
-  } catch { /* 忽略 */ }
-  msgPopoverVisible.value = false
-  if (m.link) router.push(m.link)
+    try {
+      await markMessagesReadApi([m.id])
+    } catch { /* 忽略 */ }
+  }
+  msgVisible.value = false
+  if (m.route) router.push(m.route)
 }
 
 const menus = [
@@ -272,7 +273,7 @@ onMounted(loadMessages)
         </div>
 
         <div class="topbar-right">
-          <el-popover v-model:visible="msgPopoverVisible" placement="bottom-end" :width="360" trigger="click">
+          <el-popover v-model:visible="msgVisible" placement="bottom-end" :width="360" trigger="click">
             <template #reference>
               <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="bell">
                 <el-icon :size="18"><Bell /></el-icon>
@@ -284,7 +285,7 @@ onMounted(loadMessages)
                 <el-button v-if="unreadCount" link type="primary" size="small" @click="markAllRead">全部已读</el-button>
               </div>
               <el-scrollbar v-if="messages.length" max-height="320">
-                <div v-for="m in messages" :key="m.id" class="msg-item" :class="{ unread: !m.read }" @click="goMessage(m)">
+                <div v-for="m in messages" :key="m.id" class="msg-item" :class="{ unread: !m.read }" @click="openMessage(m)">
                   <div class="msg-item-top">
                     <span class="msg-type">{{ m.type }}</span>
                     <span v-if="!m.read" class="msg-dot"></span>
@@ -535,14 +536,15 @@ onMounted(loadMessages)
   padding: 10px 4px;
   border-bottom: 1px solid #f1f3f5;
   cursor: pointer;
-}
-
-.msg-item:hover {
-  background: #f5f7fa;
+  border-radius: 4px;
 }
 
 .msg-item.unread {
   background: #f0fdf4;
+}
+
+.msg-item:hover {
+  background: #f6f8fa;
 }
 
 .msg-item-top {
