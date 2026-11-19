@@ -1769,7 +1769,7 @@ export async function assignFarmOrderApi(id, assigneeId) {
     type: '工单指派',
     title: '您有新的农事工单',
     content: `工单「${order.orderNo} ${order.title}」已指派给您，请前往地块「${order.plot}」执行「${order.taskType}」任务`,
-    link: '/farm/order',
+    route: '/farm/order',
     read: false,
     createTime: stampNow(),
   })
