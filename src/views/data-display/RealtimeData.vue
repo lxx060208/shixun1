@@ -91,9 +91,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  clearInterval(timer)
+  clearInterval(timer); timer = null
   window.removeEventListener('resize', handleResize)
-  chart?.dispose()
+  chart?.dispose(); chart = null
 })
 
 function onTabChange() {

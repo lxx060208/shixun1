@@ -3307,9 +3307,10 @@ export async function deleteKnowledgeCategoryApi(id) {
   const idx = knowledgeCategories.findIndex((c) => c.id === id)
   if (idx === -1) throw new Error('分类不存在')
   const name = knowledgeCategories[idx].name
-  if (knowledgeArticles.some((a) => a.category === name)) {
-    throw new Error('该分类下仍有知识条目，无法删除')
-  }
+  // 级联处理：删除分类时，关联文章的 category 置为空，前端渲染兜底显示"未分类"
+  knowledgeArticles.forEach((a) => {
+    if (a.category === name) a.category = ''
+  })
   knowledgeCategories.splice(idx, 1)
   persistBiz()
   return { success: true }
