@@ -42,6 +42,13 @@ const buildSeedDB = () => ({
 //          若种子里更多（说明代码升级后新增了模块权限），则用种子覆盖旧值
 const SCHEMA_VER = 2
 
+// 增量补齐用户：将种子中新增的用户（按 username 判重）并入已保存数据，
+// 已存在的用户保留其修改（密码/头像/状态等），仅追加种子里的新人员
+const mergeUsers = (saved, seed) => {
+  const names = new Set(saved.map((u) => u.username))
+  return [...saved, ...seed.filter((u) => !names.has(u.username))]
+}
+
 function loadDB() {
   try {
     const raw = localStorage.getItem(DB_KEY)
@@ -59,7 +66,7 @@ function loadDB() {
       })
       return {
         __schemaVer: SCHEMA_VER,
-        users: normalizeUsers(data.users || seed.users),
+        users: normalizeUsers(mergeUsers(data.users || [], seed.users)),
         roles: data.roles || seed.roles,
         tenants: data.tenants || seed.tenants,
         loginLogs: data.loginLogs || seed.loginLogs,

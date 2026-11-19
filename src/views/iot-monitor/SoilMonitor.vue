@@ -1,23 +1,31 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getSoilApi } from '@/api/iot'
+import { getSoilApi, getSoilTrendApi } from '@/api/iot'
 import TrendChart from '@/components/TrendChart.vue'
 
 const loading = ref(true)
 const data = ref(null)
 const tablePage = ref(1)
 const pageSize = 8
+const range = ref('24h')
 
 async function load() {
   loading.value = true
-  data.value = await getSoilApi()
+  data.value = await getSoilApi(range.value)
   loading.value = false
 }
 
 function refresh() {
   load()
   ElMessage.success('已刷新土壤墒情数据')
+}
+
+async function changeRange() {
+  const trend = await getSoilTrendApi(range.value)
+  data.value.labels = trend.labels
+  data.value.series = trend.series
+  ElMessage.success(`已切换至${range.value === '1h' ? '1 小时' : range.value === '6h' ? '6 小时' : '24 小时'}区间`)
 }
 
 const pagedHistory = computed(() => {
@@ -82,10 +90,17 @@ onMounted(load)
             <template #header>
               <div class="chart-head">
                 <span class="panel-title">墒情 & 理化指标历史曲线</span>
-                <div class="legend">
-                  <span v-for="s in data.series" :key="s.name" class="lg">
-                    <i :style="{ background: s.color }" />{{ s.name }}
-                  </span>
+                <div class="chart-tools">
+                  <el-radio-group v-model="range" size="small" @change="changeRange">
+                    <el-radio-button value="1h">1小时</el-radio-button>
+                    <el-radio-button value="6h">6小时</el-radio-button>
+                    <el-radio-button value="24h">24小时</el-radio-button>
+                  </el-radio-group>
+                  <div class="legend">
+                    <span v-for="s in data.series" :key="s.name" class="lg">
+                      <i :style="{ background: s.color }" />{{ s.name }}
+                    </span>
+                  </div>
                 </div>
               </div>
             </template>
@@ -141,6 +156,7 @@ onMounted(load)
 
 .chart-card { margin-bottom: 16px; }
 .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.chart-tools { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; }
 .lg { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--samp-text-secondary); }
 .lg i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }

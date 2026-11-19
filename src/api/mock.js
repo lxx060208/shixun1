@@ -133,6 +133,150 @@ export const users = [
     status: 1,
     createTime: '2026-09-07 16:40:00',
   },
+  {
+    id: 8,
+    username: 'zhangdg',
+    name: '张德贵',
+    phone: '13800000008',
+    email: 'zhangdg@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '种植技术员',
+    status: 1,
+    createTime: '2026-11-01 09:00:00',
+  },
+  {
+    id: 9,
+    username: 'liust',
+    name: '刘守田',
+    phone: '13800000009',
+    email: 'liust@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '植保员',
+    status: 1,
+    createTime: '2026-11-01 09:05:00',
+  },
+  {
+    id: 10,
+    username: 'sunfs',
+    name: '孙丰收',
+    phone: '13800000010',
+    email: 'sunfs@samp.com',
+    roleCode: 'operator',
+    department: '生产管理部',
+    position: '采收作业员',
+    status: 1,
+    createTime: '2026-11-01 09:10:00',
+  },
+  {
+    id: 11,
+    username: 'chenxt',
+    name: '陈巡田',
+    phone: '13800000011',
+    email: 'chenxt@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '巡田员',
+    status: 1,
+    createTime: '2026-11-01 09:15:00',
+  },
+  {
+    id: 12,
+    username: 'wangcg',
+    name: '王春耕',
+    phone: '13800000012',
+    email: 'wangcg@samp.com',
+    roleCode: 'operator',
+    department: '设备运维部',
+    position: '农机操作员',
+    status: 1,
+    createTime: '2026-11-01 09:20:00',
+  },
+  {
+    id: 13,
+    username: 'libz',
+    name: '李保植',
+    phone: '13800000013',
+    email: 'libz@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '植保员',
+    status: 1,
+    createTime: '2026-11-01 09:25:00',
+  },
+  {
+    id: 14,
+    username: 'zhaocs',
+    name: '赵采蔬',
+    phone: '13800000014',
+    email: 'zhaocs@samp.com',
+    roleCode: 'operator',
+    department: '生产管理部',
+    position: '采收作业员',
+    status: 1,
+    createTime: '2026-11-01 09:30:00',
+  },
+  {
+    id: 15,
+    username: 'qianxp',
+    name: '钱巡棚',
+    phone: '13800000015',
+    email: 'qianxp@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '巡田员',
+    status: 1,
+    createTime: '2026-11-01 09:35:00',
+  },
+  {
+    id: 16,
+    username: 'wugy',
+    name: '吴果园',
+    phone: '13800000016',
+    email: 'wugy@samp.com',
+    roleCode: 'operator',
+    department: '生产管理部',
+    position: '采收作业员',
+    status: 1,
+    createTime: '2026-11-01 09:40:00',
+  },
+  {
+    id: 17,
+    username: 'zhengbz',
+    name: '郑播种',
+    phone: '13800000017',
+    email: 'zhengbz@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '种植技术员',
+    status: 1,
+    createTime: '2026-11-01 09:45:00',
+  },
+  {
+    id: 18,
+    username: 'fengnj',
+    name: '冯农机',
+    phone: '13800000018',
+    email: 'fengnj@samp.com',
+    roleCode: 'operator',
+    department: '设备运维部',
+    position: '农机操作员',
+    status: 1,
+    createTime: '2026-11-01 09:50:00',
+  },
+  {
+    id: 19,
+    username: 'hexw',
+    name: '何巡园',
+    phone: '13800000019',
+    email: 'hexw@samp.com',
+    roleCode: 'agronomist',
+    department: '农技中心',
+    position: '巡田员',
+    status: 1,
+    createTime: '2026-11-01 09:55:00',
+  },
 ]
 
 export const tenants = [
@@ -1763,14 +1907,41 @@ export const farmSoilTypes = ['壤土', '砂壤土', '黏土', '红壤']
 
 export const farmOperationTypes = ['整地', '播种', '施肥', '灌溉', '打药', '除草', '采收', '巡田']
 
-// 农事人员复用系统用户档案（姓名一致），按园区分配
+// 农事任务类型与专业方向的对应关系：不同工单由对应专业人员执行
+export const taskTypeSpecialtyMap = {
+  整地: '农机作业',
+  播种: '种植技术',
+  施肥: '水肥管理',
+  灌溉: '水肥管理',
+  打药: '植保防治',
+  除草: '植保防治',
+  采收: '采收作业',
+  巡田: '田间巡查',
+}
+
+// 农事人员：按园区（部门）分配并标注专业方向，工单只能指派到同园区、对口的专业人员（不可跨园区）
 export const farmers = [
-  { id: 1, name: '王建国', park: '南山智慧农业示范园' },
-  { id: 2, name: '李运维', park: '南山智慧农业示范园' },
-  { id: 3, name: '陈农艺', park: '清水有机蔬菜基地' },
-  { id: 4, name: '刘星鑫', park: '清水有机蔬菜基地' },
-  { id: 5, name: '赵小敏', park: '花溪生态果园' },
-  { id: 6, name: '周运维', park: '花溪生态果园' },
+  // 南山智慧农业示范园
+  { id: 1, name: '王建国', park: '南山智慧农业示范园', specialty: '农机作业' },
+  { id: 2, name: '李运维', park: '南山智慧农业示范园', specialty: '水肥管理' },
+  { id: 7, name: '张德贵', park: '南山智慧农业示范园', specialty: '种植技术' },
+  { id: 8, name: '刘守田', park: '南山智慧农业示范园', specialty: '植保防治' },
+  { id: 9, name: '孙丰收', park: '南山智慧农业示范园', specialty: '采收作业' },
+  { id: 10, name: '陈巡田', park: '南山智慧农业示范园', specialty: '田间巡查' },
+  // 清水有机蔬菜基地
+  { id: 3, name: '陈农艺', park: '清水有机蔬菜基地', specialty: '种植技术' },
+  { id: 4, name: '刘星鑫', park: '清水有机蔬菜基地', specialty: '水肥管理' },
+  { id: 11, name: '王春耕', park: '清水有机蔬菜基地', specialty: '农机作业' },
+  { id: 12, name: '李保植', park: '清水有机蔬菜基地', specialty: '植保防治' },
+  { id: 13, name: '赵采蔬', park: '清水有机蔬菜基地', specialty: '采收作业' },
+  { id: 14, name: '钱巡棚', park: '清水有机蔬菜基地', specialty: '田间巡查' },
+  // 花溪生态果园
+  { id: 5, name: '赵小敏', park: '花溪生态果园', specialty: '植保防治' },
+  { id: 6, name: '周运维', park: '花溪生态果园', specialty: '水肥管理' },
+  { id: 15, name: '吴果园', park: '花溪生态果园', specialty: '采收作业' },
+  { id: 16, name: '郑播种', park: '花溪生态果园', specialty: '种植技术' },
+  { id: 17, name: '冯农机', park: '花溪生态果园', specialty: '农机作业' },
+  { id: 18, name: '何巡园', park: '花溪生态果园', specialty: '田间巡查' },
 ]
 
 // ---- 地块档案：15 块，面积合计 1286 亩 ----
@@ -1854,6 +2025,12 @@ export const farmPlots = [
 
 // 地块名称下拉列表（与地块档案 name 保持一致）
 export const farmPlotNameList = farmPlots.map((p) => p.name)
+
+// 根据地块名称解析所属园区（用于工单按同园区指派）
+export function getFarmPlotPark(plotName) {
+  const plot = farmPlots.find((p) => p.name === plotName)
+  return plot ? plot.location : ''
+}
 
 // ---- 农资库存：13 项，其中 5 项低库存 ----
 export const farmMaterials = [

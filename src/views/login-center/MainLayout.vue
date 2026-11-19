@@ -1,14 +1,46 @@
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { getMessagesApi, markMessagesReadApi } from '@/api'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
 const collapsed = ref(false)
+
+// 站内消息：工单指派等定向通知
+const messages = ref([])
+const msgPopoverVisible = ref(false)
+const unreadCount = computed(() => messages.value.filter((m) => !m.read).length)
+
+async function loadMessages() {
+  try {
+    const res = await getMessagesApi()
+    messages.value = res.list
+  } catch {
+    messages.value = []
+  }
+}
+
+async function markAllRead() {
+  try {
+    await markMessagesReadApi()
+    await loadMessages()
+  } catch { /* 忽略 */ }
+}
+
+// 点击消息：标记已读并跳转到对应页面
+async function goMessage(m) {
+  try {
+    await markMessagesReadApi([m.id])
+    m.read = true
+  } catch { /* 忽略 */ }
+  msgPopoverVisible.value = false
+  if (m.link) router.push(m.link)
+}
 
 const menus = [
   { path: '/dashboard', title: '工作台', icon: 'HomeFilled', permission: 'menu-dashboard' },
@@ -17,9 +49,9 @@ const menus = [
     icon: 'User',
     permission: 'menu-profile',
     children: [
-      { path: '/profile', title: '基本资料', icon: 'User' },
-      { path: '/profile/password', title: '修改密码', icon: 'Key' },
-      { path: '/profile/notifications', title: '消息通知设置', icon: 'Bell' },
+      { path: '/profile', title: '基本资料', icon: 'User', permission: 'menu-profile-info' },
+      { path: '/profile/password', title: '修改密码', icon: 'Key', permission: 'menu-profile-pwd' },
+      { path: '/profile/notifications', title: '消息通知设置', icon: 'Bell', permission: 'menu-profile-notify' },
     ],
   },
   {
@@ -27,23 +59,24 @@ const menus = [
     icon: 'DataAnalysis',
     permission: 'menu-data',
     children: [
-      { path: '/data/overview', title: '平台数据总览', icon: 'DataAnalysis' },
-      { path: '/data/gis-map', title: 'GIS园区地图', icon: 'MapLocation' },
-      { path: '/data/realtime', title: '实时环境数据', icon: 'Odometer' },
-      { path: '/data/water-fertilizer', title: '水肥与产量统计', icon: 'Pouring' },
-      { path: '/data/device-dashboard', title: '设备运维大屏', icon: 'Monitor' },
-      { path: '/data/alarm-farm', title: '告警与农事进度', icon: 'BellFilled' },
+      { path: '/data/overview', title: '平台数据总览', icon: 'DataAnalysis', permission: 'menu-data-overview' },
+      { path: '/data/gis-map', title: 'GIS园区地图', icon: 'MapLocation', permission: 'menu-data-gis' },
+      { path: '/data/realtime', title: '实时环境数据', icon: 'Odometer', permission: 'menu-data-realtime' },
+      { path: '/data/water-fertilizer', title: '水肥与产量统计', icon: 'Pouring', permission: 'menu-data-water' },
+      { path: '/data/device-dashboard', title: '设备运维大屏', icon: 'Monitor', permission: 'menu-data-device' },
+      { path: '/data/alarm-farm', title: '告警与农事进度', icon: 'BellFilled', permission: 'menu-data-alarm-farm' },
     ],
   },
   {
     title: '系统管理',
     icon: 'Setting',
+    permission: 'menu-system',
     children: [
-      { path: '/system/users', title: '用户管理', icon: 'UserFilled' },
-      { path: '/system/roles', title: '角色管理', icon: 'Avatar' },
-      { path: '/system/permission', title: '角色权限配置', icon: 'Lock' },
-      { path: '/system/logs', title: '日志审计', icon: 'Document' },
-      { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding' },
+      { path: '/system/users', title: '用户管理', icon: 'UserFilled', permission: 'menu-system-user' },
+      { path: '/system/roles', title: '角色管理', icon: 'Avatar', permission: 'menu-system-role' },
+      { path: '/system/permission', title: '角色权限配置', icon: 'Lock', permission: 'menu-system-role' },
+      { path: '/system/logs', title: '日志审计', icon: 'Document', permission: 'menu-system-log' },
+      { path: '/system/tenants', title: '租户管理', icon: 'OfficeBuilding', permission: 'menu-system-tenant' },
     ],
   },
   {
@@ -51,12 +84,12 @@ const menus = [
     icon: 'Odometer',
     permission: 'menu-iot',
     children: [
-      { path: '/iot-monitor/overview', title: '环境监测总览', icon: 'DataAnalysis' },
-      { path: '/iot-monitor/weather', title: '气象监测', icon: 'MostlyCloudy' },
-      { path: '/iot-monitor/soil', title: '土壤墒情监测', icon: 'Crop' },
-      { path: '/iot-monitor/water', title: '水质监测', icon: 'Pouring' },
-      { path: '/iot-monitor/video', title: '视频监控', icon: 'VideoCamera' },
-      { path: '/iot-monitor/collection', title: '采集管理', icon: 'SetUp' },
+      { path: '/iot-monitor/overview', title: '环境监测总览', icon: 'DataAnalysis', permission: 'menu-iot-overview' },
+      { path: '/iot-monitor/weather', title: '气象监测', icon: 'MostlyCloudy', permission: 'menu-iot-weather' },
+      { path: '/iot-monitor/soil', title: '土壤墒情监测', icon: 'Crop', permission: 'menu-iot-soil' },
+      { path: '/iot-monitor/water', title: '水质监测', icon: 'Pouring', permission: 'menu-iot-water' },
+      { path: '/iot-monitor/video', title: '视频监控', icon: 'VideoCamera', permission: 'menu-iot-video' },
+      { path: '/iot-monitor/collection', title: '采集管理', icon: 'SetUp', permission: 'menu-iot-collection' },
     ],
   },
   {
@@ -64,11 +97,11 @@ const menus = [
     icon: 'Switch',
     permission: 'menu-control',
     children: [
-      { path: '/control/manual', title: '设备手动控制台', icon: 'Switch' },
-      { path: '/control/strategy', title: '自动联动策略配置', icon: 'SetUp' },
-      { path: '/control/group', title: '分组控制', icon: 'Grid' },
-      { path: '/control/fertilizer', title: '水肥配方控制', icon: 'Pouring' },
-      { path: '/control/logs', title: '控制日志与水电', icon: 'Document' },
+      { path: '/control/manual', title: '设备手动控制台', icon: 'Switch', permission: 'menu-control-manual' },
+      { path: '/control/strategy', title: '自动联动策略配置', icon: 'SetUp', permission: 'menu-control-strategy' },
+      { path: '/control/group', title: '分组控制', icon: 'Grid', permission: 'menu-control-group' },
+      { path: '/control/fertilizer', title: '水肥配方控制', icon: 'Pouring', permission: 'menu-control-fertilizer' },
+      { path: '/control/logs', title: '控制日志与水电', icon: 'Document', permission: 'menu-control-logs' },
     ],
   },
   {
@@ -76,11 +109,11 @@ const menus = [
     icon: 'BellFilled',
     permission: 'menu-alarm',
     children: [
-      { path: '/alarm/realtime', title: '告警实时中心', icon: 'Bell' },
-      { path: '/alarm/process', title: '告警处理流程', icon: 'Connection' },
-      { path: '/alarm/rules', title: '告警规则配置', icon: 'SetUp' },
-      { path: '/alarm/history', title: '告警历史查询', icon: 'Document' },
-      { path: '/alarm/statistics', title: '告警统计分析', icon: 'DataAnalysis' },
+      { path: '/alarm/realtime', title: '告警实时中心', icon: 'Bell', permission: 'menu-alarm-realtime' },
+      { path: '/alarm/process', title: '告警处理流程', icon: 'Connection', permission: 'menu-alarm-process' },
+      { path: '/alarm/rules', title: '告警规则配置', icon: 'SetUp', permission: 'menu-alarm-rules' },
+      { path: '/alarm/history', title: '告警历史查询', icon: 'Document', permission: 'menu-alarm-history' },
+      { path: '/alarm/statistics', title: '告警统计分析', icon: 'DataAnalysis', permission: 'menu-alarm-statistics' },
     ],
   },
   {
@@ -88,13 +121,13 @@ const menus = [
     icon: 'Crop',
     permission: 'menu-farm',
     children: [
-      { path: '/farm/plot', title: '地块档案管理', icon: 'Crop' },
-      { path: '/farm/gis', title: '地块GIS地图', icon: 'MapLocation' },
-      { path: '/farm/plan', title: '种植计划管理', icon: 'Tickets' },
-      { path: '/farm/order', title: '农事工单派单', icon: 'Promotion' },
-      { path: '/farm/record', title: '农事执行打卡与台账', icon: 'EditPen' },
-      { path: '/farm/stock', title: '农资库存管理', icon: 'Box' },
-      { path: '/farm/harvest', title: '采收与产量管理', icon: 'DataAnalysis' },
+      { path: '/farm/plot', title: '地块档案管理', icon: 'Crop', permission: 'menu-farm-plot' },
+      { path: '/farm/gis', title: '地块GIS地图', icon: 'MapLocation', permission: 'menu-farm-gis' },
+      { path: '/farm/plan', title: '种植计划管理', icon: 'Tickets', permission: 'menu-farm-plan' },
+      { path: '/farm/order', title: '农事工单派单', icon: 'Promotion', permission: 'menu-farm-order' },
+      { path: '/farm/record', title: '农事执行打卡与台账', icon: 'EditPen', permission: 'menu-farm-record' },
+      { path: '/farm/stock', title: '农资库存管理', icon: 'Box', permission: 'menu-farm-stock' },
+      { path: '/farm/harvest', title: '采收与产量管理', icon: 'DataAnalysis', permission: 'menu-farm-harvest' },
     ],
   },
   {
@@ -102,11 +135,11 @@ const menus = [
     icon: 'ShoppingCart',
     permission: 'menu-sales',
     children: [
-      { path: '/sales/products', title: '农产品上架管理', icon: 'Goods' },
-      { path: '/sales/orders', title: '订单管理', icon: 'Tickets' },
-      { path: '/sales/shipments', title: '发货与物流管理', icon: 'Van' },
-      { path: '/sales/statistics', title: '销售统计', icon: 'TrendCharts' },
-      { path: '/sales/customers', title: '客户档案管理', icon: 'UserFilled' },
+      { path: '/sales/products', title: '农产品上架管理', icon: 'Goods', permission: 'menu-sales-products' },
+      { path: '/sales/orders', title: '订单管理', icon: 'Tickets', permission: 'menu-sales-orders' },
+      { path: '/sales/shipments', title: '发货与物流管理', icon: 'Van', permission: 'menu-sales-shipments' },
+      { path: '/sales/statistics', title: '销售统计', icon: 'TrendCharts', permission: 'menu-sales-statistics' },
+      { path: '/sales/customers', title: '客户档案管理', icon: 'UserFilled', permission: 'menu-sales-customers' },
     ],
   },
   {
@@ -114,27 +147,13 @@ const menus = [
     icon: 'Reading',
     permission: 'menu-knowledge',
     children: [
-      { path: '/knowledge/overview', title: '农业专家知识库总览', icon: 'Reading' },
-      { path: '/knowledge/pests', title: '病虫害知识库', icon: 'Crop' },
-      { path: '/knowledge/pest-plans', title: '病虫害防治方案库', icon: 'FirstAidKit' },
-      { path: '/knowledge/manage', title: '知识库内容管理', icon: 'Management' },
+      { path: '/knowledge/overview', title: '农业专家知识库总览', icon: 'Reading', permission: 'menu-know-overview' },
+      { path: '/knowledge/pests', title: '病虫害知识库', icon: 'Crop', permission: 'menu-know-pests' },
+      { path: '/knowledge/pest-plans', title: '病虫害防治方案库', icon: 'FirstAidKit', permission: 'menu-know-pest-plans' },
+      { path: '/knowledge/manage', title: '知识库内容管理', icon: 'Management', permission: 'menu-know-manage' },
     ],
   },
 ]
-
-const userRole = computed(() => auth.userInfo?.roleCode || '')
-const canAccess = (item) => userRole.value === 'admin' || !item.roles || item.roles.includes(userRole.value)
-const filteredMenus = computed(() => {
-  return menus
-    .map((m) => {
-      if (m.children) {
-        const children = m.children.filter(canAccess)
-        return children.length ? { ...m, children } : null
-      }
-      return canAccess(m) ? m : null
-    })
-    .filter(Boolean)
-})
 
 const activeMenu = computed(() => route.path)
 const pageTitle = computed(() => route.meta.title || '')
@@ -181,32 +200,8 @@ async function handleLogout() {
   router.replace('/login')
 }
 
-// 空闲超时监控：页面停留不操作时也能自动退出登录
-const IDLE_CHECK_INTERVAL = 30 * 1000
-const activityEvents = ['mousedown', 'keydown', 'touchstart', 'wheel']
-let idleTimer = null
+onMounted(loadMessages)
 
-function handleActivity() {
-  auth.touch()
-}
-
-function handleIdleTimeout() {
-  auth.logout()
-  ElMessage.warning('登录状态已失效，请重新登录')
-  router.replace({ path: '/login', query: { redirect: route.fullPath } })
-}
-
-onMounted(() => {
-  activityEvents.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }))
-  idleTimer = setInterval(() => {
-    if (auth.isSessionExpired()) handleIdleTimeout()
-  }, IDLE_CHECK_INTERVAL)
-})
-
-onBeforeUnmount(() => {
-  activityEvents.forEach((e) => window.removeEventListener(e, handleActivity))
-  if (idleTimer) clearInterval(idleTimer)
-})
 </script>
 
 <template>
@@ -233,7 +228,7 @@ onBeforeUnmount(() => {
           text-color="var(--samp-sidebar-text)"
           active-text-color="var(--samp-sidebar-active-text)"
         >
-          <template v-for="menu in menus" :key="menu.title">
+          <template v-for="menu in menuList" :key="menu.title">
             <el-sub-menu v-if="menu.children" :index="menu.title">
               <template #title>
                 <el-icon><component :is="menu.icon" /></el-icon>
@@ -277,11 +272,31 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="topbar-right">
-          <el-tooltip content="消息通知" placement="bottom">
-            <el-badge :value="3" class="bell">
-              <el-icon :size="18"><Bell /></el-icon>
-            </el-badge>
-          </el-tooltip>
+          <el-popover v-model:visible="msgPopoverVisible" placement="bottom-end" :width="360" trigger="click">
+            <template #reference>
+              <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="bell">
+                <el-icon :size="18"><Bell /></el-icon>
+              </el-badge>
+            </template>
+            <div class="msg-panel">
+              <div class="msg-panel-head">
+                <span class="msg-panel-title">消息通知</span>
+                <el-button v-if="unreadCount" link type="primary" size="small" @click="markAllRead">全部已读</el-button>
+              </div>
+              <el-scrollbar v-if="messages.length" max-height="320">
+                <div v-for="m in messages" :key="m.id" class="msg-item" :class="{ unread: !m.read }" @click="goMessage(m)">
+                  <div class="msg-item-top">
+                    <span class="msg-type">{{ m.type }}</span>
+                    <span v-if="!m.read" class="msg-dot"></span>
+                  </div>
+                  <div class="msg-item-title">{{ m.title }}</div>
+                  <div class="msg-item-content">{{ m.content }}</div>
+                  <div class="msg-item-time">{{ m.createTime }}</div>
+                </div>
+              </el-scrollbar>
+              <el-empty v-else description="暂无消息" :image-size="60" />
+            </div>
+          </el-popover>
 
           <el-dropdown trigger="click" @command="handleCommand">
             <div class="user-trigger">
@@ -494,6 +509,80 @@ onBeforeUnmount(() => {
 .bell {
   cursor: pointer;
   color: #5c6470;
+}
+
+.msg-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.msg-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--samp-border);
+  margin-bottom: 6px;
+}
+
+.msg-panel-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--samp-text-main);
+}
+
+.msg-item {
+  padding: 10px 4px;
+  border-bottom: 1px solid #f1f3f5;
+  cursor: pointer;
+}
+
+.msg-item:hover {
+  background: #f5f7fa;
+}
+
+.msg-item.unread {
+  background: #f0fdf4;
+}
+
+.msg-item-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.msg-type {
+  font-size: 11px;
+  color: #16a34a;
+  background: #e8f7ee;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.msg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f56c6c;
+}
+
+.msg-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--samp-text-main);
+  margin: 6px 0 2px;
+}
+
+.msg-item-content {
+  font-size: 12px;
+  color: #5c6470;
+  line-height: 1.5;
+}
+
+.msg-item-time {
+  font-size: 11px;
+  color: #adb5bd;
+  margin-top: 4px;
 }
 
 .user-trigger {

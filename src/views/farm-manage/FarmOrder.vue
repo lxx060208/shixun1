@@ -2,7 +2,7 @@
 import { reactive, ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFarmOrdersApi, createFarmOrderApi, assignFarmOrderApi, updateFarmOrderStatusApi, deleteFarmOrderApi } from '@/api'
-import { farmOperationTypes, farmPlotNameList, farmers } from '@/api/mock'
+import { farmOperationTypes, farmPlotNameList, farmers, taskTypeSpecialtyMap, getFarmPlotPark } from '@/api/mock'
 
 const statusOptions = ['待派单', '已派单', '进行中', '已完成']
 
@@ -20,6 +20,15 @@ const saving = ref(false)
 const formRef = ref()
 const assignForm = reactive({ assignee: '' })
 const currentOrder = ref(null)
+
+// 当前工单所属园区与要求的专业方向
+const currentOrderPark = computed(() => (currentOrder.value ? getFarmPlotPark(currentOrder.value.plot) : ''))
+const requiredSpecialty = computed(() => (currentOrder.value ? taskTypeSpecialtyMap[currentOrder.value.taskType] || '' : ''))
+// 可指派人员：仅同园区且专业对口（不可跨园区、不可指派非专业人员）
+const assignableFarmers = computed(() => {
+  if (!currentOrder.value) return []
+  return farmers.filter((f) => f.park === currentOrderPark.value && f.specialty === requiredSpecialty.value)
+})
 const form = reactive({ orderNo: '', title: '', plot: '', taskType: '', deadline: '' })
 
 const rules = {
@@ -112,19 +121,21 @@ async function submitForm() {
 
 function openAssign(row) {
   currentOrder.value = row
-  assignForm.assignee = row.assignee || ''
+  const cur = farmers.find((f) => f.name === row.assignee)
+  assignForm.assignee = cur && assignableFarmers.value.some((f) => f.id === cur.id) ? cur.id : ''
   assignVisible.value = true
 }
 
 async function submitAssign() {
-  if (!assignForm.assignee) {
+  if (assignForm.assignee === '' || assignForm.assignee == null) {
     ElMessage.warning('请选择要指派的农户')
     return
   }
   saving.value = true
   try {
     await assignFarmOrderApi(currentOrder.value.id, assignForm.assignee)
-    ElMessage.success(`已指派给「${assignForm.assignee}」`)
+    const farmer = farmers.find((f) => f.id === Number(assignForm.assignee))
+    ElMessage.success(`已指派给「${farmer?.name || ''}」`)
     assignVisible.value = false
     load()
   } catch (e) {
@@ -289,15 +300,19 @@ onMounted(load)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="assignVisible" title="指派农户" width="440px" destroy-on-close>
+    <el-dialog v-model="assignVisible" title="指派农户" width="480px" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="工单">
           <span class="assign-order">{{ currentOrder?.orderNo }} · {{ currentOrder?.title }}</span>
         </el-form-item>
+        <el-form-item label="任务要求">
+          <span class="assign-require">任务类型「{{ currentOrder?.taskType }}」→ 专业「{{ requiredSpecialty }}」 · 园区「{{ currentOrderPark }}」</span>
+        </el-form-item>
         <el-form-item label="指派农户">
-          <el-select v-model="assignForm.assignee" placeholder="请选择农户" style="width: 100%">
-            <el-option v-for="f in farmers" :key="f.id" :label="`${f.name}（${f.park}）`" :value="f.name" />
+          <el-select v-model="assignForm.assignee" placeholder="请选择同园区、专业对口人员" style="width: 100%">
+            <el-option v-for="f in assignableFarmers" :key="f.id" :label="`${f.name}（${f.specialty}）`" :value="f.id" />
           </el-select>
+          <div v-if="!assignableFarmers.length" class="assign-empty">当前园区暂无「{{ requiredSpecialty }}」专业人员，请先补充人员</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -349,6 +364,18 @@ onMounted(load)
 .assign-order {
   color: #1f2d3d;
   font-weight: 500;
+}
+
+.assign-require {
+  color: #b8860b;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.assign-empty {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f56c6c;
 }
 
 .pagination {

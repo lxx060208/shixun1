@@ -63,6 +63,7 @@ import {
   farmSoilTypes,
   farmers,
   farmOperationTypes,
+  taskTypeSpecialtyMap,
   farmPlotNameList,
   farmMaterials,
   farmPlots,
@@ -80,6 +81,62 @@ import {
 
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// 业务数据本地持久化：统一落盘，刷新页面仍保留
+const BIZ_STORE_KEY = 'samp_biz_store_v1'
+
+// 站内消息：工单指派等定向通知，按被指派人姓名投递
+const farmWorkMessages = []
+
+const bizCollections = {
+  linkageStrategies,
+  sceneTemplates,
+  controlGroups,
+  fertilizerFormulas,
+  fertilizerMachines,
+  alarmRealtimeList,
+  alarmRules,
+  salesProducts,
+  salesCustomers,
+  salesOrders,
+  salesShipments,
+  farmPlans,
+  farmWorkOrders,
+  farmRecords,
+  farmWorkMessages,
+  farmMaterials,
+  farmPurchases,
+  farmHarvest,
+  knowledgeCategories,
+  knowledgeExperts,
+  knowledgeArticles,
+}
+
+function persistBiz() {
+  try {
+    const snapshot = {}
+    Object.keys(bizCollections).forEach((k) => {
+      snapshot[k] = bizCollections[k]
+    })
+    localStorage.setItem(BIZ_STORE_KEY, JSON.stringify(snapshot))
+  } catch (e) { /* 忽略 */ }
+}
+
+;(function restoreBiz() {
+  try {
+    const raw = localStorage.getItem(BIZ_STORE_KEY)
+    if (!raw) return
+    const saved = JSON.parse(raw)
+    Object.keys(bizCollections).forEach((k) => {
+      const arr = bizCollections[k]
+      const items = saved[k]
+      if (Array.isArray(arr) && Array.isArray(items)) {
+        arr.length = 0
+        arr.push(...items)
+      }
+    })
+  } catch (e) { /* 忽略损坏数据 */ }
+})()
+
 // 基于现有记录生成自增主键
 const nextId = (list) => list.reduce((max, item) => Math.max(max, item.id || 0), 0) + 1
 
@@ -91,6 +148,12 @@ const stripPassword = (u) => {
 }
 
 const now = () => new Date().toLocaleString('zh-CN', { hour12: false })
+
+// 数据同步：管理员修改会影响其他账号的数据（角色权限/角色/用户）时递增版本号，
+// 相关账号在下次路由跳转或跨标签页时依据版本变化自动刷新权限与用户信息
+const bumpSyncVersion = () => {
+  localStorage.setItem('samp_perm_ver', String(Date.now()))
+}
 
 const detectBrowser = () => {
   const ua = navigator.userAgent
@@ -127,7 +190,7 @@ function recordLoginLog(username, name, status) {
 // 取当前登录操作人，用于写入操作日志（日志跟随业务操作一同落盘）
 function currentOperator() {
   try {
-    const u = JSON.parse(sessionStorage.getItem('samp_user') || 'null')
+    const u = JSON.parse(localStorage.getItem('samp_user') || 'null')
     return { username: u?.username || 'system', name: u?.name || '系统' }
   } catch {
     return { username: 'system', name: '系统' }
@@ -323,6 +386,7 @@ export async function saveUserApi(payload) {
       recordOperationLog('用户管理', '编辑用户', `修改用户「${users[idx].name}（${users[idx].username}）」的信息`)
     }
     persist()
+    bumpSyncVersion()
     return stripPassword(users[idx])
   }
   // 新增用户必须由管理员设置初始密码，并标记首次登录强制修改
@@ -341,6 +405,7 @@ export async function saveUserApi(payload) {
   users.unshift(record)
   recordOperationLog('用户管理', '新增用户', `新增用户「${record.name}（${record.username}）」`)
   persist()
+  bumpSyncVersion()
   return stripPassword(record)
 }
 
@@ -354,6 +419,7 @@ export async function deleteUserApi(id, currentUserId) {
     recordOperationLog('用户管理', '删除用户', `删除用户「${removed.name}（${removed.username}）」`)
   }
   persist()
+  bumpSyncVersion()
   return { success: true }
 }
 
@@ -372,12 +438,14 @@ export async function saveRoleApi(payload) {
       recordOperationLog('角色权限', '编辑角色', `修改角色「${roles[idx].name}（${roles[idx].code}）」`)
     }
     persist()
+    bumpSyncVersion()
     return { ...roles[idx] }
   }
   const record = { ...payload, id: nextId(roles), createTime: now() }
   roles.push(record)
   recordOperationLog('角色权限', '新增角色', `新增角色「${record.name}（${record.code}）」`)
   persist()
+  bumpSyncVersion()
   return { ...record }
 }
 
@@ -396,6 +464,7 @@ export async function deleteRoleApi(id) {
   // 同步清理该角色的权限配置，避免残留脏数据
   delete rolePermissions[role.code]
   persist()
+  bumpSyncVersion()
   return { success: true }
 }
 
@@ -416,6 +485,7 @@ export async function saveRolePermissionApi(roleCode, checkedKeys) {
   const roleName = roles.find((r) => r.code === roleCode)?.name || roleCode
   recordOperationLog('角色权限', '修改权限', `调整「${roleName}」角色的权限，共 ${checkedKeys.length} 项`)
   persist()
+  bumpSyncVersion()
   return { success: true }
 }
 
@@ -690,6 +760,7 @@ export async function toggleStrategyApi(id, enabled) {
   await delay()
   const s = linkageStrategies.find((i) => i.id === id)
   if (s) s.enabled = enabled
+  persistBiz()
   return { success: true }
 }
 
@@ -697,6 +768,7 @@ export async function toggleSceneTemplateApi(id, enabled) {
   await delay()
   const t = sceneTemplates.find((i) => i.id === id)
   if (t) t.enabled = enabled
+  persistBiz()
   return { success: true }
 }
 
@@ -705,10 +777,12 @@ export async function saveStrategyApi(payload) {
   if (payload.id) {
     const idx = linkageStrategies.findIndex((s) => s.id === payload.id)
     if (idx > -1) linkageStrategies[idx] = { ...linkageStrategies[idx], ...payload }
+    persistBiz()
     return { ...linkageStrategies[idx] }
   }
   const record = { ...payload, id: `LS-${String(linkageStrategies.length + 1).padStart(3, '0')}`, lastTrigger: '--' }
   linkageStrategies.push(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -716,6 +790,7 @@ export async function deleteStrategyApi(id) {
   await delay()
   const idx = linkageStrategies.findIndex((s) => s.id === id)
   if (idx > -1) linkageStrategies.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -728,6 +803,7 @@ export async function toggleGroupLockApi(id, locked) {
   await delay()
   const g = controlGroups.find((i) => i.id === id)
   if (g) g.locked = locked
+  persistBiz()
   return { success: true }
 }
 
@@ -752,10 +828,12 @@ export async function saveFormulaApi(payload) {
   if (payload.id) {
     const idx = fertilizerFormulas.findIndex((f) => f.id === payload.id)
     if (idx > -1) fertilizerFormulas[idx] = { ...fertilizerFormulas[idx], ...payload }
+    persistBiz()
     return { ...fertilizerFormulas[idx] }
   }
   const record = { ...payload, id: `FF-${String(fertilizerFormulas.length + 1).padStart(2, '0')}` }
   fertilizerFormulas.push(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -763,6 +841,7 @@ export async function deleteFormulaApi(id) {
   await delay()
   const idx = fertilizerFormulas.findIndex((f) => f.id === id)
   if (idx > -1) fertilizerFormulas.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -771,6 +850,7 @@ export async function applyFormulaApi(machineId, formulaName) {
   const m = fertilizerMachines.find((i) => i.id === machineId)
   if (!m) throw new Error('水肥一体机不存在')
   m.currentFormula = formulaName
+  persistBiz()
   return { ...m }
 }
 
@@ -780,6 +860,7 @@ export async function toggleMachineApi(id, action) {
   if (!m) throw new Error('水肥一体机不存在')
   m.status = action === 'start' ? 'running' : 'stopped'
   if (m.status === 'stopped') m.flowRate = 0
+  persistBiz()
   return { ...m }
 }
 
@@ -848,6 +929,7 @@ export async function confirmAlarmApi(id, operator) {
   alarm.status = '已确认'
   alarm.confirmedBy = operator || '系统管理员'
   alarm.confirmedAt = stampNow()
+  persistBiz()
   return { ...alarm }
 }
 
@@ -860,6 +942,7 @@ export async function handleAlarmApi(id, { operator, note } = {}) {
   alarm.handledBy = operator || '系统管理员'
   alarm.handledAt = stampNow()
   alarm.handleNote = note
+  persistBiz()
   return { ...alarm }
 }
 
@@ -870,6 +953,7 @@ export async function archiveAlarmApi(id, operator) {
   alarm.status = '已归档'
   alarm.archivedBy = operator || '系统管理员'
   alarm.archivedAt = stampNow()
+  persistBiz()
   return { ...alarm }
 }
 
@@ -955,6 +1039,7 @@ export async function saveAlarmRuleApi(payload) {
     const idx = alarmRules.findIndex((r) => r.id === payload.id)
     if (idx === -1) throw new Error('告警规则不存在')
     alarmRules[idx] = { ...alarmRules[idx], ...payload, notify: (payload.notify || alarmRules[idx].notify).slice() }
+    persistBiz()
     return { ...alarmRules[idx] }
   }
   const record = {
@@ -967,6 +1052,7 @@ export async function saveAlarmRuleApi(payload) {
     lastTriggerTime: '—',
   }
   alarmRules.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -975,6 +1061,7 @@ export async function toggleAlarmRuleApi(id, enabled) {
   const rule = alarmRules.find((r) => r.id === id)
   if (!rule) throw new Error('告警规则不存在')
   rule.enabled = enabled
+  persistBiz()
   return { ...rule }
 }
 
@@ -982,6 +1069,7 @@ export async function deleteAlarmRuleApi(id) {
   await delay()
   const idx = alarmRules.findIndex((r) => r.id === id)
   if (idx > -1) alarmRules.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1095,6 +1183,7 @@ export async function saveProductApi(payload) {
     const idx = salesProducts.findIndex((p) => p.id === id)
     if (idx === -1) throw new Error('农产品不存在')
     salesProducts[idx] = { ...salesProducts[idx], ...data, updateTime: stampNow() }
+    persistBiz()
     return decorateProduct(salesProducts[idx])
   }
   const max = salesProducts.reduce((m, p) => Math.max(m, Number(p.id.slice(1)) || 0), 0)
@@ -1109,6 +1198,7 @@ export async function saveProductApi(payload) {
     updateTime: stampNow(),
   }
   salesProducts.unshift(record)
+  persistBiz()
   return decorateProduct(record)
 }
 
@@ -1118,6 +1208,7 @@ export async function toggleProductStatusApi(id, status) {
   if (!product) throw new Error('农产品不存在')
   product.status = status
   product.updateTime = stampNow()
+  persistBiz()
   return decorateProduct(product)
 }
 
@@ -1129,6 +1220,7 @@ export async function deleteProductApi(id) {
     throw new Error('该农产品已有订单记录，无法删除，可先执行下架')
   }
   salesProducts.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1205,6 +1297,7 @@ export async function createOrderApi(payload) {
     remark: payload.remark || '',
   }
   salesOrders.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -1241,6 +1334,7 @@ export async function updateOrderStatusApi(id, status, payload = {}) {
       address: customer ? customer.address : '',
       tracking: [{ time: order.shipTime, location: '发货仓库', desc: '已登记发货，等待快递揽收' }],
     })
+    persistBiz()
     return decorateOrder(order)
   }
 
@@ -1257,6 +1351,7 @@ export async function updateOrderStatusApi(id, status, payload = {}) {
         desc: '快件已签收，订单交易完成',
       })
     }
+    persistBiz()
     return decorateOrder(order)
   }
 
@@ -1355,6 +1450,7 @@ export async function saveCustomerApi(payload) {
     const idx = salesCustomers.findIndex((c) => c.id === id)
     if (idx === -1) throw new Error('客户不存在')
     salesCustomers[idx] = { ...salesCustomers[idx], ...data }
+    persistBiz()
     return { ...salesCustomers[idx] }
   }
   const max = salesCustomers.reduce((m, c) => Math.max(m, Number(c.id.slice(1)) || 0), 0)
@@ -1367,6 +1463,7 @@ export async function saveCustomerApi(payload) {
     createTime: stampNow(),
   }
   salesCustomers.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -1378,6 +1475,7 @@ export async function deleteCustomerApi(id) {
     throw new Error('该客户已有订单记录，无法删除档案')
   }
   salesCustomers.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1450,6 +1548,34 @@ const findFarmMaterial = (id) => farmMaterials.find((m) => m.id === Number(id))
 // 工单状态流转：待派单 → 已派单 → 进行中 → 已完成
 const farmOrderFlow = { 待派单: ['已派单'], 已派单: ['进行中'], 进行中: ['已完成'], 已完成: [] }
 
+// 地块档案本地持久化：新增/编辑/删除后落盘，刷新页面仍保留
+const FARM_PLOTS_KEY = 'samp_farm_plots_v1'
+
+function persistFarmPlots() {
+  try {
+    localStorage.setItem(FARM_PLOTS_KEY, JSON.stringify(farmPlots))
+  } catch (e) {
+    /* 忽略存储异常 */
+  }
+}
+
+;(function loadFarmPlots() {
+  try {
+    const raw = localStorage.getItem(FARM_PLOTS_KEY)
+    if (raw) {
+      const saved = JSON.parse(raw)
+      if (Array.isArray(saved) && saved.length) {
+        farmPlots.length = 0
+        farmPlots.push(...saved)
+        farmPlotNameList.length = 0
+        farmPlotNameList.push(...farmPlots.map((p) => p.name))
+      }
+    }
+  } catch (e) {
+    /* 忽略损坏数据 */
+  }
+})()
+
 export async function getFarmPlotsApi(params = {}) {
   await delay()
   const { keyword = '', crop = '', page = 1, pageSize = 10 } = params
@@ -1488,6 +1614,7 @@ export async function saveFarmPlotApi(payload) {
       status: data.status ?? farmPlots[idx].status,
       updateTime: stampNow(),
     }
+    persistFarmPlots()
     return { ...farmPlots[idx] }
   }
   const code = farmText(data.plotCode)
@@ -1503,6 +1630,7 @@ export async function saveFarmPlotApi(payload) {
   }
   farmPlots.unshift(record)
   farmPlotNameList.push(record.name)
+  persistFarmPlots()
   return { ...record }
 }
 
@@ -1520,6 +1648,7 @@ export async function deleteFarmPlotApi(id) {
   farmPlots.splice(idx, 1)
   const nameIdx = farmPlotNameList.indexOf(plot.name)
   if (nameIdx > -1) farmPlotNameList.splice(nameIdx, 1)
+  persistFarmPlots()
   return { success: true }
 }
 
@@ -1550,6 +1679,7 @@ export async function saveFarmPlanApi(payload) {
     const idx = farmPlans.findIndex((p) => p.id === Number(id))
     if (idx === -1) throw new Error('种植计划不存在')
     farmPlans[idx] = { ...farmPlans[idx], ...data, updateTime: stampNow() }
+    persistBiz()
     return { ...farmPlans[idx] }
   }
   const record = {
@@ -1560,6 +1690,7 @@ export async function saveFarmPlanApi(payload) {
     updateTime: stampNow(),
   }
   farmPlans.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -1568,6 +1699,7 @@ export async function deleteFarmPlanApi(id) {
   const idx = farmPlans.findIndex((p) => p.id === Number(id))
   if (idx === -1) throw new Error('种植计划不存在')
   farmPlans.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1606,18 +1738,42 @@ export async function createFarmOrderApi(payload) {
     updateTime: stampNow(),
   }
   farmWorkOrders.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
-export async function assignFarmOrderApi(id, assignee) {
+export async function assignFarmOrderApi(id, assigneeId) {
   await delay(300)
   const order = findFarmOrder(id)
   if (!order) throw new Error('工单不存在')
   if (order.status === '已完成') throw new Error('已完成工单不可再指派')
-  if (!farmText(assignee)) throw new Error('请选择要指派的农户')
-  order.assignee = assignee
+  const farmer = farmers.find((f) => f.id === Number(assigneeId))
+  if (!farmer) throw new Error('请选择要指派的农户')
+  // 禁止跨园区（部门）指派：工单所属园区须与农户所在园区一致
+  const park = (farmPlots.find((p) => p.name === order.plot) || {}).location
+  if (farmer.park !== park) {
+    throw new Error(`不可跨园区指派：「${farmer.name}」所在园区「${farmer.park}」与工单所属园区「${park || '未知'}」不一致`)
+  }
+  // 只能指派到专业对口的工作人员
+  const specialty = taskTypeSpecialtyMap[order.taskType]
+  if (farmer.specialty !== specialty) {
+    throw new Error(`任务类型「${order.taskType}」需指派「${specialty}」专业人员，「${farmer.name}」专业为「${farmer.specialty}」`)
+  }
+  order.assignee = farmer.name
   if (order.status === '待派单') order.status = '已派单'
   order.updateTime = stampNow()
+  // 向被指派的工作人员推送工单指派站内消息
+  farmWorkMessages.unshift({
+    id: nextId(farmWorkMessages),
+    recipient: farmer.name,
+    type: '工单指派',
+    title: '您有新的农事工单',
+    content: `工单「${order.orderNo} ${order.title}」已指派给您，请前往地块「${order.plot}」执行「${order.taskType}」任务`,
+    link: '/farm/order',
+    read: false,
+    createTime: stampNow(),
+  })
+  persistBiz()
   return { ...order }
 }
 
@@ -1631,6 +1787,7 @@ export async function updateFarmOrderStatusApi(id, status) {
   }
   order.status = status
   order.updateTime = stampNow()
+  persistBiz()
   return { ...order }
 }
 
@@ -1643,6 +1800,38 @@ export async function deleteFarmOrderApi(id) {
     throw new Error('该工单已有农事台账记录，无法删除')
   }
   farmWorkOrders.splice(idx, 1)
+  persistBiz()
+  return { success: true }
+}
+
+/* ------------------------- 站内消息 ------------------------- */
+// 取当前登录用户姓名，用于站内消息按被指派人定向投递
+function currentUserName() {
+  try {
+    const u = JSON.parse(localStorage.getItem('samp_user') || 'null')
+    return u?.name || ''
+  } catch {
+    return ''
+  }
+}
+
+export async function getMessagesApi() {
+  await delay(200)
+  const name = currentUserName()
+  const list = farmWorkMessages
+    .filter((m) => !name || m.recipient === name)
+    .sort((a, b) => (a.createTime > b.createTime ? -1 : a.createTime < b.createTime ? 1 : b.id - a.id))
+  const unread = list.filter((m) => !m.read).length
+  return { list: list.map((m) => ({ ...m })), unread }
+}
+
+export async function markMessagesReadApi(ids) {
+  await delay(150)
+  const name = currentUserName()
+  farmWorkMessages.forEach((m) => {
+    if (m.recipient === name && (!ids || ids.includes(m.id))) m.read = true
+  })
+  persistBiz()
   return { success: true }
 }
 
@@ -1679,6 +1868,7 @@ export async function saveFarmRecordApi(payload) {
       images,
       updateTime: stampNow(),
     }
+    persistBiz()
     return { ...farmRecords[idx], images: images.slice() }
   }
   const record = {
@@ -1690,6 +1880,7 @@ export async function saveFarmRecordApi(payload) {
     createTime: stampNow(),
   }
   farmRecords.unshift(record)
+  persistBiz()
   return { ...record, images: images.slice() }
 }
 
@@ -1698,6 +1889,7 @@ export async function deleteFarmRecordApi(id) {
   const idx = farmRecords.findIndex((r) => r.id === Number(id))
   if (idx === -1) throw new Error('台账记录不存在')
   farmRecords.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1738,6 +1930,7 @@ export async function saveFarmMaterialApi(payload) {
       threshold: Number(data.threshold ?? farmMaterials[idx].threshold),
       updateTime: stampNow(),
     }
+    persistBiz()
     return { ...farmMaterials[idx] }
   }
   const record = {
@@ -1749,6 +1942,7 @@ export async function saveFarmMaterialApi(payload) {
     updateTime: stampNow(),
   }
   farmMaterials.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -1761,6 +1955,7 @@ export async function deleteFarmMaterialApi(id) {
     throw new Error('该农资已有采购记录，无法删除')
   }
   farmMaterials.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1781,6 +1976,7 @@ export async function adjustFarmStockApi(id, { type, quantity } = {}) {
     throw new Error('不支持的出入库类型')
   }
   material.updateTime = stampNow()
+  persistBiz()
   return { ...material }
 }
 
@@ -1824,6 +2020,7 @@ export async function saveFarmPurchaseApi(payload) {
       amount,
       updateTime: stampNow(),
     }
+    persistBiz()
     return { ...farmPurchases[idx] }
   }
   const record = {
@@ -1836,6 +2033,7 @@ export async function saveFarmPurchaseApi(payload) {
     createTime: stampNow(),
   }
   farmPurchases.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -1844,6 +2042,7 @@ export async function deleteFarmPurchaseApi(id) {
   const idx = farmPurchases.findIndex((p) => p.id === Number(id))
   if (idx === -1) throw new Error('采购记录不存在')
   farmPurchases.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -1894,6 +2093,7 @@ export async function saveFarmHarvestApi(payload) {
       gradeC: Number(data.gradeC ?? farmHarvest[idx].gradeC),
       updateTime: stampNow(),
     }
+    persistBiz()
     return { ...farmHarvest[idx] }
   }
   const record = {
@@ -1905,6 +2105,7 @@ export async function saveFarmHarvestApi(payload) {
     createTime: stampNow(),
   }
   farmHarvest.unshift(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -1913,6 +2114,7 @@ export async function deleteFarmHarvestApi(id) {
   const idx = farmHarvest.findIndex((h) => h.id === Number(id))
   if (idx === -1) throw new Error('采收批次不存在')
   farmHarvest.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -2008,6 +2210,7 @@ export async function saveKnowledgeExpertApi(payload) {
     const idx = knowledgeExperts.findIndex((e) => e.id === id)
     if (idx === -1) throw new Error('专家不存在')
     knowledgeExperts[idx] = { ...knowledgeExperts[idx], ...data }
+    persistBiz()
     return decorateExpert(knowledgeExperts[idx])
   }
   const max = knowledgeExperts.reduce((m, e) => Math.max(m, Number(e.id.slice(1)) || 0), 0)
@@ -2022,6 +2225,7 @@ export async function saveKnowledgeExpertApi(payload) {
     joinTime: stampNow(),
   }
   knowledgeExperts.push(record)
+  persistBiz()
   return decorateExpert(record)
 }
 
@@ -2037,6 +2241,7 @@ export async function auditKnowledgeExpertApi(id, action) {
   } else {
     throw new Error('不支持的审核动作')
   }
+  persistBiz()
   return decorateExpert(expert)
 }
 
@@ -2048,6 +2253,7 @@ export async function deleteKnowledgeExpertApi(id) {
     throw new Error('该专家已关联知识文章，无法删除')
   }
   knowledgeExperts.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -2089,6 +2295,7 @@ export async function saveKnowledgeArticleApi(payload) {
     if (idx === -1) throw new Error('知识条目不存在')
     const before = { ...knowledgeArticles[idx] }
     knowledgeArticles[idx] = { ...before, ...data }
+    persistBiz()
     return decorateArticle(knowledgeArticles[idx])
   }
   const max = knowledgeArticles.reduce((m, a) => Math.max(m, Number(a.id.slice(1)) || 0), 0)
@@ -2103,6 +2310,7 @@ export async function saveKnowledgeArticleApi(payload) {
     publishTime: stampNow(),
   }
   knowledgeArticles.unshift(record)
+  persistBiz()
   return decorateArticle(record)
 }
 
@@ -2120,6 +2328,7 @@ export async function auditKnowledgeArticleApi(id, action, remark = '') {
   } else {
     throw new Error('不支持的审核动作')
   }
+  persistBiz()
   return decorateArticle(article)
 }
 
@@ -2128,6 +2337,7 @@ export async function deleteKnowledgeArticleApi(id) {
   const idx = knowledgeArticles.findIndex((a) => a.id === id)
   if (idx === -1) throw new Error('知识条目不存在')
   knowledgeArticles.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 
@@ -2156,6 +2366,7 @@ export async function saveKnowledgeCategoryApi(payload) {
         if (a.category === oldName) a.category = name
       })
     }
+    persistBiz()
     return { ...knowledgeCategories[idx] }
   }
   const max = knowledgeCategories.reduce((m, c) => Math.max(m, Number(c.id.slice(1)) || 0), 0)
@@ -2166,6 +2377,7 @@ export async function saveKnowledgeCategoryApi(payload) {
     id: `K${String(max + 1).padStart(2, '0')}`,
   }
   knowledgeCategories.push(record)
+  persistBiz()
   return { ...record }
 }
 
@@ -2179,6 +2391,7 @@ export async function deleteKnowledgeCategoryApi(id) {
     if (a.category === name) a.category = ''
   })
   knowledgeCategories.splice(idx, 1)
+  persistBiz()
   return { success: true }
 }
 

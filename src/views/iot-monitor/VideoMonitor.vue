@@ -59,8 +59,16 @@ onMounted(load)
             <span class="v-loc">{{ ch.location }}</span>
           </div>
           <div class="v-actions">
-            <el-button size="small" :icon="'Camera'" @click="snapshot(ch)">抓拍</el-button>
-            <el-button size="small" :icon="'VideoPlay'" :disabled="ch.status !== 'online'" @click="playback(ch)">回放</el-button>
+            <el-tooltip :disabled="ch.status === 'online'" content="离线通道不可操作" placement="top">
+              <span>
+                <el-button size="small" :icon="'Camera'" :disabled="ch.status !== 'online'" @click="snapshot(ch)">抓拍</el-button>
+              </span>
+            </el-tooltip>
+            <el-tooltip :disabled="ch.status === 'online'" content="离线通道不可操作" placement="top">
+              <span>
+                <el-button size="small" :icon="'VideoPlay'" :disabled="ch.status !== 'online'" @click="playback(ch)">回放</el-button>
+              </span>
+            </el-tooltip>
           </div>
         </div>
       </div>

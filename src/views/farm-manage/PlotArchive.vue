@@ -35,7 +35,17 @@ const form = reactive({
 const rules = {
   plotCode: [{ required: true, message: '请输入地块编码', trigger: 'blur' }],
   name: [{ required: true, message: '请输入地块名称', trigger: 'blur' }],
-  area: [{ required: true, message: '请输入地块面积', trigger: 'blur' }],
+  area: [
+    { required: true, message: '请输入地块面积', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (value === null || value === undefined || value === '') return callback()
+        if (Number(value) <= 0) return callback(new Error('面积必须大于 0'))
+        callback()
+      },
+      trigger: 'blur',
+    },
+  ],
   crop: [{ required: true, message: '请选择种植作物', trigger: 'change' }],
 }
 
@@ -272,7 +282,7 @@ onMounted(load)
           </el-col>
           <el-col :span="12">
             <el-form-item label="面积(亩)" prop="area">
-              <el-input-number v-model="form.area" :min="1" :precision="1" style="width: 100%" />
+              <el-input-number v-model="form.area" :precision="1" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">

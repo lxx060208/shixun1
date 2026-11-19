@@ -4,98 +4,53 @@ import { loginApi, getUserInfoApi, getRolePermissionApi } from '@/api'
 
 const TOKEN_KEY = 'samp_token'
 const USER_KEY = 'samp_user'
-const LOGIN_AT_KEY = 'samp_login_at'
-const ACTIVE_AT_KEY = 'samp_last_active'
 
-// 会话策略：登录态最长保留 2 小时；连续 30 分钟无操作自动退出
-export const SESSION_TTL = 2 * 60 * 60 * 1000
-export const IDLE_TTL = 30 * 60 * 1000
-// 活跃时间写盘节流，避免频繁操作时反复写 sessionStorage
-const ACTIVITY_WRITE_INTERVAL = 30 * 1000
+let storageSyncBound = false
 
 export const useAuthStore = defineStore('auth', () => {
-  // 旧版本把 token 永久保存在 localStorage（关闭浏览器后仍然有效），升级后统一清理
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
-  localStorage.removeItem(LOGIN_AT_KEY)
-  localStorage.removeItem(ACTIVE_AT_KEY)
-
-  function clearSessionStorage() {
-    sessionStorage.removeItem(TOKEN_KEY)
-    sessionStorage.removeItem(USER_KEY)
-    sessionStorage.removeItem(LOGIN_AT_KEY)
-    sessionStorage.removeItem(ACTIVE_AT_KEY)
+  // 登录态永久保存在 localStorage：关闭浏览器/重启服务后仍然保持登录，
+  // 仅手动退出或账号失效（被禁用/删除）时结束会话。
+  function clearStorage() {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(USER_KEY)
   }
 
   function readStoredUser() {
     try {
-      return JSON.parse(sessionStorage.getItem(USER_KEY) || 'null')
+      return JSON.parse(localStorage.getItem(USER_KEY) || 'null')
     } catch {
       return null
     }
   }
 
-  // 登录态只保存在 sessionStorage：关闭浏览器/标签页即失效；并校验绝对有效期与空闲时长
-  const storedToken = sessionStorage.getItem(TOKEN_KEY) || ''
-  const storedLoginAt = Number(sessionStorage.getItem(LOGIN_AT_KEY) || 0)
-  const storedActiveAt = Number(sessionStorage.getItem(ACTIVE_AT_KEY) || 0)
-  const now = Date.now()
-  const sessionAlive =
-    !!storedToken &&
-    !!storedLoginAt &&
-    !!storedActiveAt &&
-    now - storedLoginAt <= SESSION_TTL &&
-    now - storedActiveAt <= IDLE_TTL &&
-    !!readStoredUser()
+  const storedToken = localStorage.getItem(TOKEN_KEY) || ''
+  const storedUser = readStoredUser()
+  const sessionAlive = !!storedToken && !!storedUser
 
-  if (!sessionAlive) clearSessionStorage()
+  if (!sessionAlive) clearStorage()
 
   const token = ref(sessionAlive ? storedToken : '')
-  const userInfo = ref(sessionAlive ? readStoredUser() : null)
+  const userInfo = ref(sessionAlive ? storedUser : null)
   const permissions = ref([])
 
   const isLoggedIn = computed(() => !!token.value)
   const roles = computed(() => (userInfo.value?.roleCode ? [userInfo.value.roleCode] : []))
 
-  // 会话有效性校验的时间戳，避免每次路由跳转都请求用户信息
+  // 会话账号有效性校验的节流，避免每次路由跳转都请求用户信息
   let lastCheckAt = 0
   const CHECK_INTERVAL = 20000
-  let lastActiveWriteAt = storedActiveAt
   let permissionsLoaded = false
   let permVersion = 0
 
   async function login({ username, password }) {
     const res = await loginApi({ username, password })
-    const startedAt = Date.now()
     token.value = res.token
     userInfo.value = res.userInfo
-    lastCheckAt = startedAt
-    lastActiveWriteAt = startedAt
-    sessionStorage.setItem(TOKEN_KEY, res.token)
-    sessionStorage.setItem(USER_KEY, JSON.stringify(res.userInfo))
-    sessionStorage.setItem(LOGIN_AT_KEY, String(startedAt))
-    sessionStorage.setItem(ACTIVE_AT_KEY, String(startedAt))
+    lastCheckAt = Date.now()
+    localStorage.setItem(TOKEN_KEY, res.token)
+    localStorage.setItem(USER_KEY, JSON.stringify(res.userInfo))
     await loadPermissions()
     return res
-  }
-
-  // 记录用户活跃时间（节流写入），用于空闲超时判定
-  function touch() {
-    if (!token.value) return
-    const t = Date.now()
-    if (t - lastActiveWriteAt < ACTIVITY_WRITE_INTERVAL) return
-    lastActiveWriteAt = t
-    sessionStorage.setItem(ACTIVE_AT_KEY, String(t))
-  }
-
-  // 判断会话是否已超时（绝对有效期或空闲超时）
-  function isSessionExpired() {
-    if (!token.value || !userInfo.value?.id) return true
-    const t = Date.now()
-    const startedAt = Number(sessionStorage.getItem(LOGIN_AT_KEY) || 0)
-    const lastActive = Number(sessionStorage.getItem(ACTIVE_AT_KEY) || 0)
-    if (!startedAt || !lastActive) return true
-    return t - startedAt > SESSION_TTL || t - lastActive > IDLE_TTL
   }
 
   // 加载当前角色拥有的权限点
@@ -115,10 +70,18 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function ensurePermissions() {
-    // 其他会话保存过权限配置时，版本号变化会触发重新加载
+    // 管理员修改角色权限/角色/用户后，版本号变化会触发相关账号自动刷新
     const storedVersion = Number(localStorage.getItem('samp_perm_ver') || 0)
     if (permissionsLoaded && storedVersion === permVersion) return permissions.value
+    // 先刷新当前用户信息（角色/状态可能已变更），再按最新角色重载权限
     try {
+      if (userInfo.value?.id) {
+        const fresh = await getUserInfoApi(userInfo.value.id)
+        if (fresh) {
+          userInfo.value = fresh
+          localStorage.setItem(USER_KEY, JSON.stringify(fresh))
+        }
+      }
       return await loadPermissions()
     } catch {
       permissions.value = []
@@ -132,14 +95,18 @@ export const useAuthStore = defineStore('auth', () => {
     return permissions.value.includes(code)
   }
 
-  // 校验当前会话：先判断超时，再校验账号是否仍然有效（存在且为启用状态）
+  // 登录态永久保存，不存在时间/空闲过期，仅在未登录或账号无效时视为失效
+  function isSessionExpired() {
+    return !token.value || !userInfo.value?.id
+  }
+
+  // 校验当前会话：账号是否仍然有效（存在且为启用状态）
   async function checkSession() {
     if (!token.value || !userInfo.value?.id) return false
     if (isSessionExpired()) {
       logout()
       return false
     }
-    touch()
     if (Date.now() - lastCheckAt < CHECK_INTERVAL) return true
     try {
       const res = await getUserInfoApi(userInfo.value.id)
@@ -151,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       userInfo.value = res
       lastCheckAt = Date.now()
-      sessionStorage.setItem(USER_KEY, JSON.stringify(res))
+      localStorage.setItem(USER_KEY, JSON.stringify(res))
       return true
     } catch {
       logout()
@@ -163,7 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
     const res = await getUserInfoApi(userInfo.value?.id)
     if (res) {
       userInfo.value = res
-      sessionStorage.setItem(USER_KEY, JSON.stringify(res))
+      localStorage.setItem(USER_KEY, JSON.stringify(res))
     }
     return res
   }
@@ -174,8 +141,24 @@ export const useAuthStore = defineStore('auth', () => {
     permissions.value = []
     permissionsLoaded = false
     lastCheckAt = 0
-    lastActiveWriteAt = 0
-    clearSessionStorage()
+    clearStorage()
+  }
+
+  // 数据同步：跨标签页监听 localStorage 变化，管理员在其他标签页修改数据后本页实时刷新
+  if (!storageSyncBound) {
+    storageSyncBound = true
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'samp_perm_ver') {
+        ensurePermissions()
+      } else if (e.key === USER_KEY) {
+        const u = readStoredUser()
+        if (u) {
+          userInfo.value = u
+          permissionsLoaded = false
+          loadPermissions()
+        }
+      }
+    })
   }
 
   return {
@@ -188,7 +171,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     fetchUserInfo,
     checkSession,
-    touch,
     isSessionExpired,
     loadPermissions,
     refreshPermissions,
