@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -201,7 +201,23 @@ async function handleLogout() {
   router.replace('/login')
 }
 
-onMounted(loadMessages)
+// 站内消息定时刷新 + 跨标签页同步：管理员在其他标签页指派工单后，被指派人无需刷新即可收到工单信息
+let msgTimer = null
+
+function handleBizStoreChange(e) {
+  if (e.key === 'samp_biz_store_v1') loadMessages()
+}
+
+onMounted(() => {
+  loadMessages()
+  msgTimer = setInterval(loadMessages, 20000)
+  window.addEventListener('storage', handleBizStoreChange)
+})
+
+onBeforeUnmount(() => {
+  if (msgTimer) clearInterval(msgTimer)
+  window.removeEventListener('storage', handleBizStoreChange)
+})
 
 </script>
 

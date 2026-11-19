@@ -106,10 +106,16 @@ const bizCollections = {
   farmMaterials,
   farmPurchases,
   farmHarvest,
+  deviceWorkOrders,
   knowledgeCategories,
   knowledgeExperts,
   knowledgeArticles,
 }
+
+// 农资种子快照：用于给旧本地数据增量补齐新增的农资/工具，避免老缓存看不到新物资
+const farmMaterialSeeds = farmMaterials.map((m) => ({ ...m }))
+// 农产品种子快照：用于给旧本地缓存补齐种植地块关联字段
+const salesProductSeeds = salesProducts.map((p) => ({ ...p }))
 
 function persistBiz() {
   try {
@@ -136,6 +142,115 @@ function persistBiz() {
     })
   } catch (e) { /* 忽略损坏数据 */ }
 })()
+
+// 按名称补齐种子农资（仅执行一次，不覆盖用户已有库存，也不复活用户已删除的农资）
+let deviceToolSeededThisRun = false
+;(function mergeSeedFarmMaterials() {
+  const VER_KEY = 'samp_material_seed_ver'
+  const VER = 3
+  let applied = 0
+  try {
+    applied = Number(localStorage.getItem(VER_KEY) || 0)
+    if (applied >= VER) return
+  } catch (e) {
+    return
+  }
+  const names = new Set(farmMaterials.map((m) => m.name))
+  const missing = farmMaterialSeeds.filter((m) => !names.has(m.name))
+  if (missing.length) {
+    let maxId = farmMaterials.reduce((max, m) => Math.max(max, m.id || 0), 0)
+    missing.forEach((m) => {
+      maxId += 1
+      if (m.name === '数字万用表') deviceToolSeededThisRun = true
+      farmMaterials.push({ ...m, id: maxId })
+    })
+    persistBiz()
+  }
+  try {
+    localStorage.setItem(VER_KEY, String(VER))
+  } catch (e) {
+    /* 忽略存储异常 */
+  }
+})()
+
+// 补齐旧缓存中的工具归还演示数据：3 号大棚水泵工单已领用万用表、尚未归还
+// 仅对仍处于种子状态（未执行完）的历史工单补一次，并同步扣减库存，保证归还前后数据一致
+;(function seedDeviceToolBorrowing() {
+  const VER_KEY = 'samp_device_tool_return_seed_ver'
+  const VER = 1
+  try {
+    if (Number(localStorage.getItem(VER_KEY) || 0) >= VER) return
+  } catch (e) {
+    return
+  }
+  const order = deviceWorkOrders.find((o) => o.id === 'WO20261103001')
+  const material = farmMaterials.find((m) => m.name === '数字万用表')
+  const hasBorrowed =
+    order && (order.consumed || []).some((c) => c.material === '数字万用表')
+  if (order && material && !hasBorrowed && Number(order.progress) === 60) {
+    order.consumed = [
+      ...(order.consumed || []),
+      { material: '数字万用表', quantity: 1, unit: '台', returned: 0, returnTime: '' },
+    ]
+    // 工具是本次才补入库存时，种子库存已含本次领用，无需重复扣减
+    if (!deviceToolSeededThisRun) {
+      material.stock = Math.max(Number(material.stock) - 1, 0)
+    }
+    persistBiz()
+  }
+  try {
+    localStorage.setItem(VER_KEY, String(VER))
+  } catch (e) {
+    /* 忽略存储异常 */
+  }
+})()
+
+// 补齐旧缓存中的农产品种植地块字段（仅执行一次，仅填充缺失字段，不覆盖用户已维护数据）
+;(function mergeProductPlanting() {
+  const VER_KEY = 'samp_product_plot_ver'
+  const VER = 1
+  try {
+    if (Number(localStorage.getItem(VER_KEY) || 0) >= VER) return
+  } catch (e) {
+    return
+  }
+  let changed = false
+  salesProducts.forEach((p) => {
+    if (p.plotCode !== undefined) return
+    const seed = salesProductSeeds.find((s) => s.id === p.id)
+    if (!seed || !seed.plotCode) return
+    p.plotCode = seed.plotCode
+    if (p.crop === undefined) p.crop = seed.crop
+    changed = true
+  })
+  if (changed) persistBiz()
+  try {
+    localStorage.setItem(VER_KEY, String(VER))
+  } catch (e) {
+    /* 忽略存储异常 */
+  }
+})()
+
+// 跨标签页同步：其他标签页（如管理员指派工单）写入业务数据后，本页内存数据随之刷新，
+// 保证被指派人无需刷新页面即可收到工单消息与农事台账数据
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== BIZ_STORE_KEY || !e.newValue) return
+    try {
+      const saved = JSON.parse(e.newValue)
+      Object.keys(bizCollections).forEach((k) => {
+        const arr = bizCollections[k]
+        const items = saved[k]
+        if (Array.isArray(arr) && Array.isArray(items)) {
+          arr.length = 0
+          arr.push(...items)
+        }
+      })
+    } catch (e) {
+      /* 忽略损坏数据 */
+    }
+  })
+}
 
 // 基于现有记录生成自增主键
 const nextId = (list) => list.reduce((max, item) => Math.max(max, item.id || 0), 0) + 1
@@ -677,6 +792,375 @@ export async function downloadBackupApi(backupId) {
   return { file: target.file, content: target.snapshot }
 }
 
+/* ------------------------- 设备运维工单 ------------------------- */
+// 运维人员名单：动态取「运维人员」角色且状态启用的账号，避免派发给已停用/非运维账号
+const getDeviceMaintainers = () =>
+  users
+    .filter((u) => u.roleCode === 'operator' && Number(u.status) === 1)
+    .map((u) => ({ name: u.name, phone: u.phone, team: u.department || '设备运维部', userId: u.id }))
+
+const deviceOrderTypeOptions = ['故障维修', '校准维护', '定期保养', '巡检']
+const deviceOrderStatusOptions = ['待派单', '已派单', '处理中', '已完成']
+const devicePriorityOptions = ['高', '中', '低']
+
+// 工具中的一次性耗材：使用后不回库，不参与归还
+// 其余工具（万用表、扳手、梯子等）使用后应归还并回补库存
+const DEVICE_CONSUMABLE_TOOLS = new Set(['绝缘胶带', '尼龙扎带', '密封胶'])
+const isReturnableFarmTool = (material) =>
+  !!material && material.category === '工具' && !DEVICE_CONSUMABLE_TOOLS.has(material.name)
+
+// ---- 运维工单权限 ----
+// 系统管理员 / 农场管理者：可新建、派发、查看全部工单
+// 运维人员：只能查看并执行指派给本人的工单，不可新建/派发
+// 其他角色：只读查看，不可做任何变更
+const deviceRoleNames = {
+  admin: '系统管理员',
+  manager: '农场管理者',
+  operator: '运维人员',
+  sales: '产销业务员',
+  agronomist: '农技人员',
+}
+
+function deviceOrderAccess() {
+  const user = currentUser()
+  const roleCode = user.roleCode || ''
+  const name = user.name || ''
+  const isAdmin = roleCode === 'admin'
+  const isManager = roleCode === 'manager'
+  const isOperator = roleCode === 'operator'
+  const canManage = isAdmin || isManager
+  return {
+    roleCode,
+    roleName: deviceRoleNames[roleCode] || '访客',
+    userName: name,
+    isAdmin,
+    isManager,
+    isOperator,
+    canCreate: canManage,
+    canDispatch: canManage,
+    canExecuteAny: isAdmin,
+    canViewAll: !isOperator,
+    readOnly: !canManage && !isOperator,
+  }
+}
+
+const deviceOrderPermissions = (access) => ({
+  roleCode: access.roleCode,
+  roleName: access.roleName,
+  userName: access.userName,
+  canCreate: access.canCreate,
+  canDispatch: access.canDispatch,
+  canExecuteAny: access.canExecuteAny,
+  canViewAll: access.canViewAll,
+  readOnly: access.readOnly,
+})
+
+// 按角色收敛数据范围：运维人员只能看到指派给自己的工单
+function visibleDeviceOrders(access) {
+  if (!access.isOperator) return deviceWorkOrders
+  if (!access.userName) return []
+  return deviceWorkOrders.filter((o) => o.assignee === access.userName)
+}
+
+// 新建/派发/重新派发等管理操作仅限系统管理员与农场管理者
+function assertDeviceOrderManage(action) {
+  const access = deviceOrderAccess()
+  if (!access.canDispatch) throw new Error(`仅系统管理员或农场管理者可${action}运维工单`)
+  return access
+}
+
+// 执行操作：系统管理员可处理任意工单，运维人员只能执行指派给本人的工单
+function assertDeviceOrderExecutable(order) {
+  const access = deviceOrderAccess()
+  if (access.canExecuteAny) return access
+  if (!access.isOperator) throw new Error('仅系统管理员或工单负责人可执行运维工单')
+  if (!access.userName || order.assignee !== access.userName) {
+    throw new Error('只能执行指派给本人的运维工单')
+  }
+  return access
+}
+
+const findDeviceOrder = (id) => {
+  const order = deviceWorkOrders.find((o) => o.id === id)
+  if (!order) throw new Error('运维工单不存在')
+  return order
+}
+
+const sortDeviceOrders = (list) =>
+  list
+    .slice()
+    .sort((a, b) => {
+      // 未完成工单优先，其次按创建时间倒序
+      const doneA = a.status === '已完成' ? 1 : 0
+      const doneB = b.status === '已完成' ? 1 : 0
+      if (doneA !== doneB) return doneA - doneB
+      return a.createTime < b.createTime ? 1 : -1
+    })
+
+const deviceOrderStats = (list) => ({
+  total: list.length,
+  pending: list.filter((o) => o.status === '待派单').length,
+  dispatched: list.filter((o) => o.status === '已派单').length,
+  processing: list.filter((o) => o.status === '处理中').length,
+  done: list.filter((o) => o.status === '已完成').length,
+  running: list.filter((o) => o.status !== '已完成').length,
+})
+
+const normalizeDeviceOrder = (o) => ({
+  ...o,
+  assignee: o.assignee || '',
+  consumed: (o.consumed || []).map((c) => ({
+    returned: 0,
+    returnTime: '',
+    ...c,
+  })),
+  logs: (o.logs || []).map((l) => ({ ...l })),
+})
+
+const pushDeviceLog = (order, action, operator, remark) => {
+  order.logs = order.logs || []
+  order.logs.push({ time: stampNow(), action, operator: operator || '系统', remark: remark || '' })
+}
+
+function genDeviceOrderNo() {
+  const day = stampNow().slice(0, 10).replace(/-/g, '')
+  let seq = 1
+  let no = `WO${day}${String(seq).padStart(3, '0')}`
+  while (deviceWorkOrders.some((o) => o.id === no)) {
+    seq += 1
+    no = `WO${day}${String(seq).padStart(3, '0')}`
+  }
+  return no
+}
+
+export async function getDeviceWorkOrdersApi(params = {}) {
+  await delay()
+  const access = deviceOrderAccess()
+  const scoped = visibleDeviceOrders(access)
+  const keyword = farmText(params.keyword)
+  const { status = '', type = '', assignee = '', priority = '' } = params
+  let list = scoped.filter((o) => {
+    if (status && o.status !== status) return false
+    if (type && o.type !== type) return false
+    if (assignee && o.assignee !== assignee) return false
+    if (priority && o.priority !== priority) return false
+    if (keyword) {
+      const text = [o.id, o.device, o.deviceCode, o.location, o.park, o.assignee, o.description]
+        .join(' ')
+      if (!text.includes(keyword)) return false
+    }
+    return true
+  })
+  list = sortDeviceOrders(list).map(normalizeDeviceOrder)
+  return {
+    list,
+    stats: deviceOrderStats(scoped),
+    maintainers: getDeviceMaintainers(),
+    types: deviceOrderTypeOptions.slice(),
+    statuses: deviceOrderStatusOptions.slice(),
+    priorities: devicePriorityOptions.slice(),
+    permissions: deviceOrderPermissions(access),
+  }
+}
+
+export async function getDeviceMaintainersApi() {
+  await delay(120)
+  return getDeviceMaintainers()
+}
+
+// 新建运维工单：仅系统管理员/农场管理者可创建，默认待派单
+export async function createDeviceWorkOrderApi(payload) {
+  await delay()
+  assertDeviceOrderManage('新建')
+  const device = farmText(payload.device)
+  if (!device) throw new Error('请填写设备名称')
+  const type = payload.type || '故障维修'
+  if (!deviceOrderTypeOptions.includes(type)) throw new Error('工单类型不正确')
+  const priority = payload.priority || '中'
+  if (!devicePriorityOptions.includes(priority)) throw new Error('优先级不正确')
+  const order = {
+    id: genDeviceOrderNo(),
+    device,
+    deviceCode: farmText(payload.deviceCode),
+    type,
+    park: farmText(payload.park),
+    location: farmText(payload.location),
+    priority,
+    description: farmText(payload.description),
+    assignee: '',
+    progress: 0,
+    status: '待派单',
+    createTime: stampNow(),
+    deadline: payload.deadline || '',
+    startTime: '',
+    finishTime: '',
+    consumed: [],
+    logs: [],
+  }
+  pushDeviceLog(order, '创建工单', currentUserName(), payload.description || '手动创建工单')
+  deviceWorkOrders.unshift(order)
+  persistBiz()
+  return normalizeDeviceOrder(order)
+}
+
+// 派发工单：仅系统管理员/农场管理者可指派、调整负责人与截止时间
+export async function dispatchDeviceWorkOrderApi(id, payload) {
+  await delay()
+  assertDeviceOrderManage('派发')
+  const order = findDeviceOrder(id)
+  if (order.status === '处理中') throw new Error('工单已开始执行，不能重新派发')
+  if (order.status === '已完成') throw new Error('工单已完成，不能重新派发')
+  const assignee = farmText(payload.assignee)
+  if (!assignee) throw new Error('请选择负责人')
+  if (!getDeviceMaintainers().some((m) => m.name === assignee)) {
+    throw new Error('负责人不在启用状态的运维人员名单中')
+  }
+  if (payload.priority && !devicePriorityOptions.includes(payload.priority)) {
+    throw new Error('优先级不正确')
+  }
+  const prev = order.assignee
+  order.assignee = assignee
+  order.priority = payload.priority || order.priority
+  order.deadline = payload.deadline || order.deadline || ''
+  order.status = '已派单'
+  const remark = payload.remark
+    ? payload.remark
+    : prev && prev !== assignee
+      ? `负责人由${prev}调整为${assignee}`
+      : `指派${assignee}处理`
+  pushDeviceLog(order, '派发工单', currentUserName(), remark)
+  persistBiz()
+  return normalizeDeviceOrder(order)
+}
+
+// 开始执行：已派单 → 处理中；仅系统管理员或工单负责人可操作
+export async function startDeviceWorkOrderApi(id) {
+  await delay()
+  const order = findDeviceOrder(id)
+  assertDeviceOrderExecutable(order)
+  if (order.status === '待派单') throw new Error('工单尚未派发，请先派发负责人')
+  if (order.status === '已完成') throw new Error('工单已完成，无需重复执行')
+  if (order.status === '处理中') throw new Error('工单已在执行中')
+  order.status = '处理中'
+  order.startTime = stampNow()
+  if (!order.progress) order.progress = 10
+  pushDeviceLog(order, '开始执行', currentUserName(), '已到场，开始处理')
+  persistBiz()
+  return normalizeDeviceOrder(order)
+}
+
+// 执行登记：更新进度、登记本次使用的维修工具/耗材（自动出库），进度 100% 即完工
+export async function executeDeviceWorkOrderApi(id, payload) {
+  await delay(400)
+  const order = findDeviceOrder(id)
+  assertDeviceOrderExecutable(order)
+  if (order.status === '待派单') throw new Error('工单尚未派发，请先派发负责人')
+  if (order.status === '已完成') throw new Error('工单已完成，不能重复提交')
+  if (order.status !== '处理中') throw new Error('请先开始执行后再登记进度')
+  const progress = Number(payload.progress)
+  if (!Number.isFinite(progress) || progress < 0 || progress > 100) {
+    throw new Error('执行进度需在 0-100 之间')
+  }
+  // 防止误拖回退进度造成数据回退
+  if (progress < Number(order.progress || 0)) {
+    throw new Error(`执行进度不能低于当前进度（${order.progress}%）`)
+  }
+  const remark = farmText(payload.remark)
+  if (progress === 100 && !remark) throw new Error('完工时请填写维修结果说明')
+  const added = normalizeConsumedMaterials(payload.consumed)
+  // 每次登记只追加本次消耗，避免把历史消耗误判为退回
+  const consumedDetail = added.length ? applyConsumedMaterialsDelta([], added) : []
+  if (consumedDetail.length) {
+    // 新领用工具默认未归还，便于完工后归还回库
+    order.consumed = [
+      ...(order.consumed || []),
+      ...consumedDetail.map((c) => ({ ...c, returned: 0, returnTime: '' })),
+    ]
+  }
+  order.progress = progress
+  if (progress >= 100) {
+    order.status = '已完成'
+    order.progress = 100
+    order.finishTime = stampNow()
+    pushDeviceLog(order, '完成工单', currentUserName(), remark || '工单已完工')
+  } else {
+    order.status = '处理中'
+    pushDeviceLog(
+      order,
+      '进度更新',
+      currentUserName(),
+      `${remark ? `${remark}（` : ''}当前进度 ${progress}%${remark ? '）' : ''}`,
+    )
+  }
+  persistBiz()
+  return normalizeDeviceOrder(order)
+}
+
+// 工具归还：工具类农资使用后归还入库，同一工具支持分次归还
+// 仅工单负责人、系统管理员与农场管理者可操作，且归还数量不能超过未归还数量
+export async function returnDeviceWorkOrderToolsApi(id, payload = {}) {
+  await delay()
+  const order = findDeviceOrder(id)
+  const access = deviceOrderAccess()
+  const isOwner = access.isOperator && access.userName && order.assignee === access.userName
+  if (!access.canDispatch && !isOwner) {
+    throw new Error('仅工单负责人、系统管理员或农场管理者可归还工具')
+  }
+  const returnMap = new Map()
+  ;(Array.isArray(payload.items) ? payload.items : []).forEach((item) => {
+    const name = farmText(item && item.material)
+    const qty = Number(item && item.quantity) || 0
+    if (!name || qty <= 0) return
+    returnMap.set(name, (returnMap.get(name) || 0) + qty)
+  })
+  if (!returnMap.size) throw new Error('请填写归还数量')
+
+  // 先整体校验再统一入库，避免部分工具已归还、部分失败造成库存失真
+  const plans = []
+  returnMap.forEach((qty, name) => {
+    const material = farmMaterials.find((m) => m.name === name)
+    if (!material) throw new Error(`农资「${name}」未建档，无法归还`)
+    if (material.category !== '工具') throw new Error(`「${name}」不是工具类农资，不支持归还`)
+    if (!isReturnableFarmTool(material)) throw new Error(`「${name}」属于工具耗材，使用后无需归还`)
+    const entries = (order.consumed || []).filter((c) => c.material === name)
+    const remaining = entries.reduce(
+      (sum, c) => sum + Math.max((Number(c.quantity) || 0) - (Number(c.returned) || 0), 0),
+      0,
+    )
+    if (remaining <= 0) throw new Error(`「${name}」已全部归还，无需重复归还`)
+    if (qty > remaining) throw new Error(`「${name}」最多可归还 ${remaining}${material.unit}`)
+    plans.push({ name, qty, material, entries })
+  })
+
+  const now = stampNow()
+  plans.forEach(({ qty, material, entries }) => {
+    let left = qty
+    // 按领用先后顺序分摊归还数量，保留每次领用的归还明细
+    entries.forEach((entry) => {
+      if (left <= 0) return
+      const available = Math.max((Number(entry.quantity) || 0) - (Number(entry.returned) || 0), 0)
+      if (available <= 0) return
+      const take = Math.min(available, left)
+      entry.returned = (Number(entry.returned) || 0) + take
+      entry.returnTime = now
+      left -= take
+    })
+    material.stock = (Number(material.stock) || 0) + qty
+    material.updateTime = now
+  })
+
+  const summary = plans.map((p) => `${p.name} ${p.qty}${p.material.unit}`).join('，')
+  const remark = farmText(payload.remark)
+  pushDeviceLog(
+    order,
+    '工具归还',
+    currentUserName(),
+    `归还 ${summary}，库存已同步回补${remark ? `；${remark}` : ''}`,
+  )
+  persistBiz()
+  return normalizeDeviceOrder(order)
+}
+
 /* ------------------------- 数据展示 ------------------------- */
 export async function getDataOverviewApi() {
   await delay()
@@ -709,12 +1193,16 @@ export async function getWaterFertilizerApi() {
 
 export async function getDeviceDashboardApi() {
   await delay()
+  const access = deviceOrderAccess()
+  const scoped = visibleDeviceOrders(access)
+  const orders = sortDeviceOrders(scoped).map(normalizeDeviceOrder)
   return {
-    stats: { ...deviceStats },
+    stats: { ...deviceStats, runningOrders: deviceOrderStats(scoped).running },
     onlineRate: { ...deviceOnlineRate7d },
     fault: { ...deviceFault7d },
     typeDist: deviceTypeDist.map((i) => ({ ...i })),
-    workOrders: deviceWorkOrders.map((o) => ({ ...o })),
+    workOrders: orders,
+    permissions: deviceOrderPermissions(access),
   }
 }
 
@@ -1124,6 +1612,35 @@ const salesSum = (list, key) => list.reduce((sum, item) => sum + (item[key] || 0
 const findSalesProduct = (id) => salesProducts.find((p) => p.id === id)
 const findSalesCustomer = (id) => salesCustomers.find((c) => c.id === id)
 
+// ---- 农产品 ↔ 种植地块联动 ----
+const findFarmPlotByCode = (code) => farmPlots.find((p) => p.plotCode === code)
+
+// 解析农产品种植来源：地块档案、种植作物、最近一次种植计划与采收批次
+function resolvePlanting(product) {
+  const plot = findFarmPlotByCode(product.plotCode)
+  const plotName = plot ? plot.name : product.plot || ''
+  const crop = product.crop || (plot ? plot.crop : product.variety)
+  const plan = farmPlans
+    .filter((p) => p.plot === plotName && (!crop || p.crop === crop))
+    .sort((a, b) => (a.endDate > b.endDate ? -1 : 1))[0]
+  const harvest = farmHarvest
+    .filter((h) => h.plot === plotName && (!crop || h.crop === crop))
+    .sort((a, b) => (a.harvestDate > b.harvestDate ? -1 : 1))[0]
+  return {
+    plotCode: plot ? plot.plotCode : product.plotCode || '',
+    plot: plotName,
+    crop,
+    park: plot ? plot.location : product.park,
+    plotArea: plot ? plot.area : '',
+    plotOwner: plot ? plot.owner : '',
+    plantPlanName: plan ? plan.planName : '',
+    plantPlanStatus: plan ? plan.status : '',
+    plantPlanEnd: plan ? plan.endDate : '',
+    batchNo: harvest ? harvest.batchNo : '',
+    harvestDate: harvest ? harvest.harvestDate : '',
+  }
+}
+
 // 已支付口径：待支付订单不计入销售额、销量与客户采购
 const salesPaidOrders = () => salesOrders.filter((o) => o.status !== '待支付')
 
@@ -1131,6 +1648,7 @@ const decorateProduct = (product) => {
   const rows = salesPaidOrders().filter((o) => o.productId === product.id)
   return {
     ...product,
+    ...resolvePlanting(product),
     monthSales: salesSum(rows, 'qty'),
     monthAmount: roundMoney(salesSum(rows, 'amount')),
   }
@@ -1138,10 +1656,17 @@ const decorateProduct = (product) => {
 
 const decorateOrder = (order) => {
   const customer = findSalesCustomer(order.customerId)
+  const product = findSalesProduct(order.productId)
+  const planting = product ? resolvePlanting(product) : {}
   return {
     ...order,
     customer: customer ? customer.name : order.customer,
     customerLevel: customer ? customer.level : order.customerLevel,
+    plotCode: order.plotCode || planting.plotCode || '',
+    plot: order.plot || planting.plot || '',
+    crop: order.crop || planting.crop || '',
+    plotOwner: order.plotOwner || planting.plotOwner || '',
+    batchNo: order.batchNo || planting.batchNo || '',
   }
 }
 
@@ -1150,7 +1675,7 @@ const salesDateString = (d) =>
 
 export async function getProductsApi(params = {}) {
   await delay()
-  const { keyword = '', category = '', status = '', park = '', page = 1, pageSize = 10 } = params
+  const { keyword = '', category = '', status = '', park = '', plotCode = '', page = 1, pageSize = 10 } = params
   const kw = keyword.trim()
   const list = salesProducts
     .map(decorateProduct)
@@ -1158,8 +1683,9 @@ export async function getProductsApi(params = {}) {
       if (category && p.category !== category) return false
       if (status && p.status !== status) return false
       if (park && p.park !== park) return false
+      if (plotCode && p.plotCode !== plotCode) return false
       if (kw) {
-        const text = `${p.id} ${p.name} ${p.variety} ${p.grade} ${p.spec}`
+        const text = `${p.id} ${p.name} ${p.variety} ${p.grade} ${p.spec} ${p.plot} ${p.crop} ${p.batchNo}`
         if (!text.includes(kw)) return false
       }
       return true
@@ -1173,12 +1699,41 @@ export async function getProductsApi(params = {}) {
     onShelf: salesProducts.filter((p) => p.status === '上架').length,
     offShelf: salesProducts.filter((p) => p.status === '下架').length,
     lowStock: salesProducts.filter((p) => p.status === '上架' && p.stock < 200).length,
+    linkedPlots: new Set(salesProducts.map((p) => p.plotCode).filter(Boolean)).size,
+    unlinked: salesProducts.filter((p) => !p.plotCode).length,
   }
+}
+
+// 农产品可关联的种植地块：带出作物、面积、负责人与当前种植计划，供产销对接选择
+export async function getProductPlotOptionsApi() {
+  await delay(100)
+  return farmPlots.map((plot) => {
+    const plan = farmPlans
+      .filter((p) => p.plot === plot.name)
+      .sort((a, b) => (a.endDate > b.endDate ? -1 : 1))[0]
+    return {
+      code: plot.plotCode,
+      name: plot.name,
+      crop: plot.crop,
+      area: plot.area,
+      park: plot.location,
+      owner: plot.owner,
+      status: plot.status,
+      planName: plan ? plan.planName : '',
+      planStatus: plan ? plan.status : '',
+    }
+  })
 }
 
 export async function saveProductApi(payload) {
   await delay()
   const { id, ...data } = payload
+  const plot = data.plotCode ? findFarmPlotByCode(data.plotCode) : null
+  if (data.plotCode && !plot) throw new Error('种植地块不存在，请重新选择')
+  // 地块为主数据源：选定地块后自动带出地块名称、所属园区与种植作物
+  Object.assign(data, plot
+    ? { plotCode: plot.plotCode, plot: plot.name, park: plot.location, crop: farmText(data.crop) || plot.crop }
+    : { plot: '', crop: farmText(data.crop) })
   if (id) {
     const idx = salesProducts.findIndex((p) => p.id === id)
     if (idx === -1) throw new Error('农产品不存在')
@@ -1226,19 +1781,20 @@ export async function deleteProductApi(id) {
 
 export async function getOrdersApi(params = {}) {
   await delay()
-  const { keyword = '', status = '', customerId = '', dateRange = [], page = 1, pageSize = 10 } = params
+  const { keyword = '', status = '', customerId = '', plotCode = '', dateRange = [], page = 1, pageSize = 10 } = params
   const kw = keyword.trim()
   const list = salesOrders
     .map(decorateOrder)
     .filter((o) => {
       if (status && o.status !== status) return false
       if (customerId && o.customerId !== customerId) return false
+      if (plotCode && o.plotCode !== plotCode) return false
       if (dateRange && dateRange.length === 2) {
         const day = o.createTime.slice(0, 10)
         if (day < dateRange[0] || day > dateRange[1]) return false
       }
       if (kw) {
-        const text = `${o.orderNo} ${o.customer} ${o.product} ${o.logisticsNo}`
+        const text = `${o.orderNo} ${o.customer} ${o.product} ${o.logisticsNo} ${o.plot} ${o.crop} ${o.batchNo}`
         if (!text.includes(kw)) return false
       }
       return true
@@ -1273,6 +1829,7 @@ export async function createOrderApi(payload) {
   const maxId = salesOrders.reduce((m, o) => Math.max(m, o.id), 0) + 1
   const stamp = stampNow()
   const dateCompact = stamp.slice(0, 10).replace(/-/g, '')
+  const planting = resolvePlanting(product)
   const record = {
     id: maxId,
     orderNo: `SO${dateCompact}${String(maxId).padStart(3, '0')}`,
@@ -1286,7 +1843,12 @@ export async function createOrderApi(payload) {
     unitPrice: product.price,
     qty,
     amount: roundMoney(product.price * qty),
-    park: product.park,
+    park: planting.park || product.park,
+    plotCode: planting.plotCode,
+    plot: planting.plot,
+    crop: planting.crop,
+    plotOwner: planting.plotOwner,
+    batchNo: planting.batchNo,
     status: '待支付',
     createTime: stamp.slice(0, 16),
     payTime: '',
@@ -1367,11 +1929,21 @@ export async function getShipmentsApi(params = {}) {
   const { keyword = '', status = '', page = 1, pageSize = 10 } = params
   const kw = keyword.trim()
   const list = salesShipments
-    .map((s) => ({ ...s, tracking: s.tracking.map((n) => ({ ...n })) }))
+    .map((s) => {
+      const order = salesOrders.find((o) => o.id === s.orderId)
+      const origin = order ? decorateOrder(order) : {}
+      return {
+        ...s,
+        plotCode: origin.plotCode || '',
+        plot: origin.plot || '',
+        crop: origin.crop || '',
+        tracking: s.tracking.map((n) => ({ ...n })),
+      }
+    })
     .filter((s) => {
       if (status && s.status !== status) return false
       if (kw) {
-        const text = `${s.id} ${s.orderNo} ${s.customer} ${s.product} ${s.logisticsNo}`
+        const text = `${s.id} ${s.orderNo} ${s.customer} ${s.product} ${s.logisticsNo} ${s.plot} ${s.crop}`
         if (!text.includes(kw)) return false
       }
       return true
@@ -1548,6 +2120,94 @@ const findFarmMaterial = (id) => farmMaterials.find((m) => m.id === Number(id))
 // 工单状态流转：待派单 → 已派单 → 进行中 → 已完成
 const farmOrderFlow = { 待派单: ['已派单'], 已派单: ['进行中'], 进行中: ['已完成'], 已完成: [] }
 
+// 工单可指派人员：同园区（部门）+ 任务专业对口
+function eligibleFarmersForOrder(order) {
+  const park = (farmPlots.find((p) => p.name === order.plot) || {}).location
+  const specialty = taskTypeSpecialtyMap[order.taskType]
+  return farmers.filter((f) => f.park === park && f.specialty === specialty)
+}
+
+// 自动指派：在同园区、专业对口的人员中选择当前未完成工单最少者，避免任务堆积
+function pickAutoAssignee(order) {
+  const candidates = eligibleFarmersForOrder(order)
+  if (!candidates.length) return null
+  const activeCount = (name) => farmWorkOrders.filter((o) => o.assignee === name && o.status !== '已完成').length
+  return [...candidates].sort((a, b) => activeCount(a.name) - activeCount(b.name))[0]
+}
+
+// 向被指派人推送工单指派站内消息
+function pushAssignMessage(order, farmer) {
+  farmWorkMessages.unshift({
+    id: nextId(farmWorkMessages),
+    recipient: farmer.name,
+    type: '工单指派',
+    title: '您有新的农事工单',
+    content: `工单「${order.orderNo} ${order.title}」已指派给您，请前往地块「${order.plot}」执行「${order.taskType}」任务，截止日期 ${order.deadline || '不限'}`,
+    route: '/farm/record',
+    read: false,
+    createTime: stampNow(),
+  })
+}
+
+// 工作人员提交打卡即视为完成该工单，自动同步工单状态为「已完成」
+// 仅当工单已指派且打卡执行人与被指派人一致（含管理员代录）时同步，避免误更新无关工单
+function syncOrderStatusByRecord(record) {
+  if (!record || !record.orderNo) return null
+  const order = farmWorkOrders.find((o) => o.orderNo === record.orderNo)
+  if (!order || order.status === '已完成') return null
+  if (!order.assignee || record.worker !== order.assignee) return null
+  order.status = '已完成'
+  order.updateTime = stampNow()
+  return order
+}
+
+// ---- 农事物资联动：打卡消耗的农资/工具自动出库 ----
+// 同一农资多次选择时合并数量，忽略空行与非法数量
+function normalizeConsumedMaterials(list) {
+  const map = new Map()
+  ;(Array.isArray(list) ? list : []).forEach((c) => {
+    const name = farmText(c && c.material)
+    const qty = Number(c && c.quantity) || 0
+    if (!name || qty <= 0) return
+    map.set(name, (map.get(name) || 0) + qty)
+  })
+  return [...map.entries()].map(([material, quantity]) => ({ material, quantity }))
+}
+
+// 按「新消耗 - 旧消耗」的差额调整库存：新增时扣减、编辑时补差、删除时回补
+// 先整体校验再统一扣减，避免部分农资已扣、部分失败导致库存失真
+function applyConsumedMaterialsDelta(oldList, newList) {
+  const deltas = new Map()
+  ;(Array.isArray(oldList) ? oldList : []).forEach((c) => {
+    const qty = Number(c && c.quantity) || 0
+    if (c && c.material) deltas.set(c.material, (deltas.get(c.material) || 0) - qty)
+  })
+  newList.forEach((c) => {
+    deltas.set(c.material, (deltas.get(c.material) || 0) + c.quantity)
+  })
+  const items = []
+  deltas.forEach((delta, name) => {
+    if (!delta) return
+    const material = farmMaterials.find((m) => m.name === name)
+    if (!material) {
+      if (delta > 0) throw new Error(`农资「${name}」未建档，请先在农资库存中新增`)
+      return
+    }
+    if (Number(material.stock) < delta) {
+      throw new Error(`农资「${material.name}」库存不足（当前 ${material.stock}${material.unit}，需消耗 ${delta}${material.unit}）`)
+    }
+    items.push({ material, delta })
+  })
+  items.forEach(({ material, delta }) => {
+    material.stock = Number(material.stock) - delta
+    material.updateTime = stampNow()
+  })
+  return newList.map((c) => {
+    const material = farmMaterials.find((m) => m.name === c.material)
+    return { material: c.material, quantity: c.quantity, unit: material ? material.unit : '' }
+  })
+}
+
 // 地块档案本地持久化：新增/编辑/删除后落盘，刷新页面仍保留
 const FARM_PLOTS_KEY = 'samp_farm_plots_v1'
 
@@ -1657,7 +2317,13 @@ export async function getFarmPlansApi(params = {}) {
   const { keyword = '', operationType = '', page = 1, pageSize = 10 } = params
   const kw = farmText(keyword)
   const list = farmPlans
-    .map((p) => ({ ...p }))
+    .map((p) => {
+      // 关联工单：计划保存时自动生成并回写工单号
+      const order = p.workOrderId
+        ? farmWorkOrders.find((o) => o.id === Number(p.workOrderId))
+        : farmWorkOrders.find((o) => o.orderNo === p.orderNo)
+      return { ...p, orderNo: order ? order.orderNo : p.orderNo || '', orderStatus: order ? order.status : '' }
+    })
     .filter((p) => {
       if (operationType && p.operationType !== operationType) return false
       if (kw) {
@@ -1672,6 +2338,86 @@ export async function getFarmPlansApi(params = {}) {
   return { list: list.slice(start, start + pageSize), total }
 }
 
+// ---- 种植计划 ↔ 农事工单联动 ----
+// 工单号按日期生成，同日重复时追加序号
+function genWorkOrderNo() {
+  const d = new Date()
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  let no = `WO-${ymd}`
+  let seq = 1
+  while (farmWorkOrders.some((o) => o.orderNo === no)) {
+    seq += 1
+    no = `WO-${ymd}-${seq}`
+  }
+  return no
+}
+
+// 计划状态映射到工单状态：已完成/进行中不回退，其余由指派情况决定
+function planOrderStatus(plan, order) {
+  if (order.status === '已完成' || plan.status === '已完成') return '已完成'
+  if (order.status === '进行中' || plan.status === '进行中') return '进行中'
+  return order.assignee ? '已派单' : '待派单'
+}
+
+// 保存计划后同步工单：已有则更新标题/地块/任务/截止日期与状态，无则自动生成并指派
+function syncOrderFromPlan(plan) {
+  let order = plan.workOrderId
+    ? farmWorkOrders.find((o) => o.id === Number(plan.workOrderId))
+    : farmWorkOrders.find((o) => o.orderNo === plan.orderNo)
+  if (order) {
+    const prevAssignee = order.assignee
+    order.title = plan.planName
+    order.plot = plan.plot
+    order.taskType = plan.operationType
+    order.deadline = plan.endDate || order.deadline
+    if (plan.executor) order.assignee = plan.executor
+    order.status = planOrderStatus(plan, order)
+    order.planId = plan.id
+    order.updateTime = stampNow()
+    // 执行人变更时重新推送指派消息，确保新负责人收到通知
+    if (order.assignee && prevAssignee !== order.assignee) {
+      const farmer = farmers.find((f) => f.name === order.assignee)
+      if (farmer) pushAssignMessage(order, farmer)
+    }
+    plan.orderNo = order.orderNo
+    plan.workOrderId = order.id
+    plan.workOrderStatus = order.status
+    return { order, created: false }
+  }
+  const record = {
+    id: nextId(farmWorkOrders),
+    orderNo: genWorkOrderNo(),
+    title: plan.planName,
+    plot: plan.plot,
+    taskType: plan.operationType,
+    assignee: plan.executor || '',
+    deadline: plan.endDate || '',
+    planId: plan.id,
+    createTime: stampNow(),
+    updateTime: stampNow(),
+    status: plan.executor ? '已派单' : '待派单',
+  }
+  if (plan.status === '进行中') record.status = '进行中'
+  if (plan.status === '已完成') record.status = '已完成'
+  farmWorkOrders.unshift(record)
+  if (record.assignee) {
+    const farmer = farmers.find((f) => f.name === record.assignee)
+    if (farmer) pushAssignMessage(record, farmer)
+  } else {
+    // 计划未指定执行人时，按同园区、专业对口、任务最少自动指派
+    const autoFarmer = pickAutoAssignee(record)
+    if (autoFarmer) {
+      record.assignee = autoFarmer.name
+      record.status = '已派单'
+      pushAssignMessage(record, autoFarmer)
+    }
+  }
+  plan.orderNo = record.orderNo
+  plan.workOrderId = record.id
+  plan.workOrderStatus = record.status
+  return { order: record, created: true }
+}
+
 export async function saveFarmPlanApi(payload) {
   await delay()
   const { id, ...data } = payload
@@ -1679,8 +2425,10 @@ export async function saveFarmPlanApi(payload) {
     const idx = farmPlans.findIndex((p) => p.id === Number(id))
     if (idx === -1) throw new Error('种植计划不存在')
     farmPlans[idx] = { ...farmPlans[idx], ...data, updateTime: stampNow() }
+    // 编辑计划同步更新关联工单（无关联工单时自动补建）
+    const synced = syncOrderFromPlan(farmPlans[idx])
     persistBiz()
-    return { ...farmPlans[idx] }
+    return { ...farmPlans[idx], orderNo: synced.order.orderNo, orderStatus: synced.order.status, orderCreated: synced.created }
   }
   const record = {
     ...data,
@@ -1690,17 +2438,30 @@ export async function saveFarmPlanApi(payload) {
     updateTime: stampNow(),
   }
   farmPlans.unshift(record)
+  // 新增计划即生成对应农事工单，并自动指派给执行人或专业人员
+  const synced = syncOrderFromPlan(record)
   persistBiz()
-  return { ...record }
+  return { ...record, orderNo: synced.order.orderNo, orderStatus: synced.order.status, orderCreated: synced.created }
 }
 
 export async function deleteFarmPlanApi(id) {
   await delay()
   const idx = farmPlans.findIndex((p) => p.id === Number(id))
   if (idx === -1) throw new Error('种植计划不存在')
+  const plan = farmPlans[idx]
+  const order = plan.workOrderId
+    ? farmWorkOrders.find((o) => o.id === Number(plan.workOrderId))
+    : farmWorkOrders.find((o) => o.orderNo === plan.orderNo)
+  let removedOrderNo = ''
+  // 删除计划同步撤销未完成的关联工单；已完成工单与已有打卡记录的工单保留以保留历史
+  if (order && order.status !== '已完成' && !farmRecords.some((r) => r.orderNo === order.orderNo)) {
+    const orderIdx = farmWorkOrders.findIndex((o) => o.id === order.id)
+    if (orderIdx > -1) farmWorkOrders.splice(orderIdx, 1)
+    removedOrderNo = order.orderNo
+  }
   farmPlans.splice(idx, 1)
   persistBiz()
-  return { success: true }
+  return { success: true, removedOrderNo, keptOrderNo: order && !removedOrderNo ? order.orderNo : '' }
 }
 
 export async function getFarmOrdersApi(params = {}) {
@@ -1725,6 +2486,7 @@ export async function getFarmOrdersApi(params = {}) {
 
 export async function createFarmOrderApi(payload) {
   await delay(400)
+  assertOrderAdmin()
   const orderNo = farmText(payload.orderNo)
   if (!orderNo) throw new Error('请输入工单编号')
   if (farmWorkOrders.some((o) => o.orderNo === orderNo)) throw new Error(`工单编号「${orderNo}」已存在`)
@@ -1737,6 +2499,13 @@ export async function createFarmOrderApi(payload) {
     createTime: stampNow(),
     updateTime: stampNow(),
   }
+  // 下发即自动指派给同园区、专业对口且任务最少的工作人员；无匹配人员时保留待派单由管理员手动指派
+  const autoFarmer = pickAutoAssignee(record)
+  if (autoFarmer) {
+    record.assignee = autoFarmer.name
+    record.status = '已派单'
+    pushAssignMessage(record, autoFarmer)
+  }
   farmWorkOrders.unshift(record)
   persistBiz()
   return { ...record }
@@ -1744,6 +2513,7 @@ export async function createFarmOrderApi(payload) {
 
 export async function assignFarmOrderApi(id, assigneeId) {
   await delay(300)
+  assertOrderAdmin()
   const order = findFarmOrder(id)
   if (!order) throw new Error('工单不存在')
   if (order.status === '已完成') throw new Error('已完成工单不可再指派')
@@ -1759,26 +2529,20 @@ export async function assignFarmOrderApi(id, assigneeId) {
   if (farmer.specialty !== specialty) {
     throw new Error(`任务类型「${order.taskType}」需指派「${specialty}」专业人员，「${farmer.name}」专业为「${farmer.specialty}」`)
   }
+  const prevAssignee = order.assignee
   order.assignee = farmer.name
   if (order.status === '待派单') order.status = '已派单'
   order.updateTime = stampNow()
-  // 向被指派的工作人员推送工单指派站内消息
-  farmWorkMessages.unshift({
-    id: nextId(farmWorkMessages),
-    recipient: farmer.name,
-    type: '工单指派',
-    title: '您有新的农事工单',
-    content: `工单「${order.orderNo} ${order.title}」已指派给您，请前往地块「${order.plot}」执行「${order.taskType}」任务`,
-    route: '/farm/order',
-    read: false,
-    createTime: stampNow(),
-  })
+  // 向被指派的工作人员推送工单指派站内消息，被指派人登录后即可在站内消息与农事台账中查看
+  // 重复指派同一人时不重复推送，避免消息冒泡
+  if (prevAssignee !== farmer.name) pushAssignMessage(order, farmer)
   persistBiz()
   return { ...order }
 }
 
 export async function updateFarmOrderStatusApi(id, status) {
   await delay(300)
+  assertOrderAdmin()
   const order = findFarmOrder(id)
   if (!order) throw new Error('工单不存在')
   const allowed = farmOrderFlow[order.status] || []
@@ -1793,6 +2557,7 @@ export async function updateFarmOrderStatusApi(id, status) {
 
 export async function deleteFarmOrderApi(id) {
   await delay()
+  assertOrderAdmin()
   const idx = farmWorkOrders.findIndex((o) => o.id === Number(id))
   if (idx === -1) throw new Error('工单不存在')
   const order = farmWorkOrders[idx]
@@ -1804,15 +2569,24 @@ export async function deleteFarmOrderApi(id) {
   return { success: true }
 }
 
-/* ------------------------- 站内消息 ------------------------- */
-// 取当前登录用户姓名，用于站内消息按被指派人定向投递
-function currentUserName() {
+/* ------------------------- 站内消息与权限判定 ------------------------- */
+// 取当前登录账号，站内消息定向投递、工单操作权限与台账记录权限均以登录账号为准
+function currentUser() {
   try {
-    const u = JSON.parse(localStorage.getItem('samp_user') || 'null')
-    return u?.name || ''
+    return JSON.parse(localStorage.getItem('samp_user') || 'null') || {}
   } catch {
-    return ''
+    return {}
   }
+}
+
+// 取当前登录用户姓名：站内消息按被指派人姓名定向投递
+function currentUserName() {
+  return currentUser().name || ''
+}
+
+// 农事工单下发/指派/状态流转/删除仅系统管理员可操作
+function assertOrderAdmin() {
+  if (currentUser().roleCode !== 'admin') throw new Error('仅系统管理员可操作农事工单')
 }
 
 export async function getMessagesApi() {
@@ -1835,15 +2609,59 @@ export async function markMessagesReadApi(ids) {
   return { success: true }
 }
 
+// 当前登录账号被指派的农事工单：农事台账「我的工单」展示，含工单状态与打卡情况
+export async function getMyFarmOrdersApi(params = {}) {
+  await delay()
+  const { keyword = '', status = '', page = 1, pageSize = 10 } = params
+  const name = currentUserName()
+  const kw = farmText(keyword)
+  const mine = name ? farmWorkOrders.filter((o) => o.assignee === name) : []
+  const statusCounts = mine.reduce((acc, o) => {
+    acc[o.status] = (acc[o.status] || 0) + 1
+    return acc
+  }, {})
+  const list = mine
+    .map((o) => {
+      const record = farmRecords.find((r) => r.orderNo === o.orderNo && r.worker === o.assignee)
+      return {
+        ...o,
+        recorded: !!record,
+        recordTime: record ? record.recordTime : '',
+      }
+    })
+    .filter((o) => {
+      if (status && o.status !== status) return false
+      if (kw) {
+        const text = `${o.orderNo} ${o.title} ${o.plot} ${o.taskType}`
+        if (!text.includes(kw)) return false
+      }
+      return true
+    })
+    .sort((a, b) => (a.createTime > b.createTime ? -1 : a.createTime < b.createTime ? 1 : b.id - a.id))
+  const total = list.length
+  const start = (page - 1) * pageSize
+  return { list: list.slice(start, start + pageSize), total, statusCounts }
+}
+
 export async function getFarmRecordsApi(params = {}) {
   await delay()
   const { keyword = '', page = 1, pageSize = 10 } = params
   const kw = farmText(keyword)
+  const admin = currentUser().roleCode === 'admin'
+  const name = currentUserName()
   const list = farmRecords
-    .map((r) => ({ ...r, images: (r.images || []).slice() }))
+    .map((r) => ({
+      ...r,
+      images: (r.images || []).slice(),
+      // 关联工单状态：删除台账时据此判断是否需要同步回退工单状态
+      orderStatus: (farmWorkOrders.find((o) => o.orderNo === r.orderNo) || {}).status || '',
+      // 权限标记：本人记录可编辑；删除仅系统管理员
+      editable: admin || (!!name && r.worker === name),
+      deletable: admin,
+    }))
     .filter((r) => {
       if (kw) {
-        const text = `${r.orderNo} ${r.plot} ${r.worker} ${r.taskType} ${r.materials}`
+        const text = `${r.orderNo} ${r.plot} ${r.worker} ${r.taskType} ${r.materials} ${r.remark || ''} ${(r.consumed || []).map((c) => c.material).join(' ')}`
         if (!text.includes(kw)) return false
       }
       return true
@@ -1858,49 +2676,100 @@ export async function saveFarmRecordApi(payload) {
   await delay()
   const { id, ...data } = payload
   const images = (data.images || []).slice()
+  const admin = currentUser().roleCode === 'admin'
+  const name = currentUserName()
+  const consumed = normalizeConsumedMaterials(data.consumed)
   if (id) {
     const idx = farmRecords.findIndex((r) => r.id === Number(id))
     if (idx === -1) throw new Error('台账记录不存在')
+    // 工作人员只能修改本人提交的打卡记录，系统管理员可修改全部
+    if (!admin && farmRecords[idx].worker !== name) {
+      throw new Error('只能修改本人提交的打卡记录')
+    }
+    // 编辑打卡：按新旧消耗差额补/退库存
+    const consumedDetail = applyConsumedMaterialsDelta(farmRecords[idx].consumed, consumed)
     farmRecords[idx] = {
       ...farmRecords[idx],
       ...data,
+      worker: admin ? data.worker ?? farmRecords[idx].worker : farmRecords[idx].worker,
       workHours: Number(data.workHours ?? farmRecords[idx].workHours),
+      consumed: consumedDetail,
       images,
       updateTime: stampNow(),
     }
     persistBiz()
     return { ...farmRecords[idx], images: images.slice() }
   }
+  // 工作人员只能提交本人的打卡记录，执行人固定为当前登录账号
+  if (!admin && name) data.worker = name
+  // 打卡消耗农资/工具：扣减库存并记录实际出库明细
+  const consumedDetail = applyConsumedMaterialsDelta([], consumed)
   const record = {
     ...data,
     id: nextId(farmRecords),
     workHours: Number(data.workHours) || 1,
+    consumed: consumedDetail,
     images,
     recordTime: stampNow(),
     createTime: stampNow(),
   }
   farmRecords.unshift(record)
+  // 打卡完成后自动同步农事工单状态，保证工单与台账数据一致
+  const syncedOrder = syncOrderStatusByRecord(record)
   persistBiz()
-  return { ...record, images: images.slice() }
+  return { ...record, images: images.slice(), orderStatus: syncedOrder ? syncedOrder.status : '' }
 }
 
 export async function deleteFarmRecordApi(id) {
   await delay()
+  // 打卡台账记录仅系统管理员可删除，避免工作人员误删他人记录
+  if (currentUser().roleCode !== 'admin') {
+    throw new Error('打卡台账记录仅系统管理员可删除')
+  }
   const idx = farmRecords.findIndex((r) => r.id === Number(id))
   if (idx === -1) throw new Error('台账记录不存在')
+  const record = farmRecords[idx]
   farmRecords.splice(idx, 1)
+  // 删除台账回补该次打卡消耗的农资/工具库存，避免库存失准
+  applyConsumedMaterialsDelta(record.consumed, [])
+  // 删除台账后同步工单状态：已完成工单若已无任何打卡记录，则回退为「进行中」
+  // 仍有其他打卡记录时保持已完成，避免误回退
+  const order = record.orderNo ? farmWorkOrders.find((o) => o.orderNo === record.orderNo) : null
+  let rolledBack = null
+  if (order && order.status === '已完成' && !farmRecords.some((r) => r.orderNo === record.orderNo)) {
+    order.status = '进行中'
+    order.updateTime = stampNow()
+    rolledBack = order
+  }
   persistBiz()
-  return { success: true }
+  return { success: true, orderNo: order ? order.orderNo : record.orderNo, orderStatus: rolledBack ? rolledBack.status : '' }
 }
 
 export async function getFarmMaterialsApi(params = {}) {
   await delay()
-  const { keyword = '', category = '', page = 1, pageSize = 10 } = params
+  const { keyword = '', category = '', status = '', location = '', page = 1, pageSize = 10 } = params
   const kw = farmText(keyword)
+  // 统计运维工单中尚未归还的工具数量，库存页可直接看到「在外借用」情况
+  const borrowedMap = new Map()
+  deviceWorkOrders.forEach((o) => {
+    ;(o.consumed || []).forEach((c) => {
+      const remaining = (Number(c.quantity) || 0) - (Number(c.returned) || 0)
+      if (remaining <= 0) return
+      borrowedMap.set(c.material, (borrowedMap.get(c.material) || 0) + remaining)
+    })
+  })
   const list = farmMaterials
-    .map((m) => ({ ...m }))
+    .map((m) => ({
+      ...m,
+      returnable: isReturnableFarmTool(m),
+      borrowed: borrowedMap.get(m.name) || 0,
+    }))
     .filter((m) => {
       if (category && m.category !== category) return false
+      if (location && m.location !== location) return false
+      // 状态筛选：low 仅看低库存（库存 ≤ 预警阀值），normal 仅看库存充足
+      if (status === 'low' && Number(m.stock) > Number(m.threshold)) return false
+      if (status === 'normal' && Number(m.stock) <= Number(m.threshold)) return false
       if (kw) {
         const text = `${m.name} ${m.category} ${m.spec} ${m.location}`
         if (!text.includes(kw)) return false
@@ -1914,6 +2783,7 @@ export async function getFarmMaterialsApi(params = {}) {
     list: list.slice(start, start + pageSize),
     total,
     lowStockCount: farmMaterials.filter((m) => m.stock <= m.threshold).length,
+    locations: [...new Set(farmMaterials.map((m) => m.location).filter(Boolean))],
   }
 }
 
@@ -1953,6 +2823,19 @@ export async function deleteFarmMaterialApi(id) {
   const material = farmMaterials[idx]
   if (farmPurchases.some((p) => p.material === material.name)) {
     throw new Error('该农资已有采购记录，无法删除')
+  }
+  // 存在未归还工具的，删除后无法归还，先归还再删除（工具耗材无需归还，不阻塞删除）
+  const hasOutstanding =
+    isReturnableFarmTool(material) &&
+    deviceWorkOrders.some((o) =>
+      (o.consumed || []).some(
+        (c) =>
+          c.material === material.name &&
+          (Number(c.quantity) || 0) - (Number(c.returned) || 0) > 0,
+      ),
+    )
+  if (hasOutstanding) {
+    throw new Error('该工具还有未归还记录，请全部归还后再删除')
   }
   farmMaterials.splice(idx, 1)
   persistBiz()
@@ -2009,23 +2892,43 @@ export async function saveFarmPurchaseApi(payload) {
   const quantity = Number(data.quantity) || 0
   const unitPrice = Number(data.unitPrice) || 0
   const amount = roundMoney(quantity * unitPrice)
+  const materialName = farmText(data.material)
+  const material = farmMaterials.find((m) => m.name === materialName)
   if (id) {
     const idx = farmPurchases.findIndex((p) => p.id === Number(id))
     if (idx === -1) throw new Error('采购记录不存在')
+    const prev = farmPurchases[idx]
+    // 编辑采购单时按数量差同步调整库存（更换农资则“原农资扣回、新农资增加”）
+    const prevMaterial = farmMaterials.find((m) => m.name === prev.material)
+    if (prevMaterial && material && prevMaterial.id === material.id) {
+      material.stock = Number(material.stock) + (quantity - Number(prev.quantity || 0))
+      material.updateTime = stampNow()
+    } else {
+      if (prevMaterial) {
+        prevMaterial.stock = Math.max(0, Number(prevMaterial.stock) - Number(prev.quantity || 0))
+        prevMaterial.updateTime = stampNow()
+      }
+      if (material) {
+        material.stock = Number(material.stock) + quantity
+        material.updateTime = stampNow()
+      }
+    }
     farmPurchases[idx] = {
-      ...farmPurchases[idx],
+      ...prev,
       ...data,
+      unit: data.unit || material?.unit || prev.unit,
       quantity,
       unitPrice,
       amount,
       updateTime: stampNow(),
     }
     persistBiz()
-    return { ...farmPurchases[idx] }
+    return { ...farmPurchases[idx], stockAfter: material ? material.stock : null }
   }
   const record = {
     ...data,
     id: nextId(farmPurchases),
+    unit: data.unit || material?.unit || '',
     quantity,
     unitPrice,
     amount,
@@ -2033,17 +2936,35 @@ export async function saveFarmPurchaseApi(payload) {
     createTime: stampNow(),
   }
   farmPurchases.unshift(record)
+  // 采购入库：登记采购后同步增加对应农资库存，低库存状态随之刷新
+  let stockAfter = null
+  if (material) {
+    material.stock = Number(material.stock) + quantity
+    material.updateTime = stampNow()
+    stockAfter = material.stock
+  }
   persistBiz()
-  return { ...record }
+  return { ...record, stockAfter }
 }
 
 export async function deleteFarmPurchaseApi(id) {
   await delay()
   const idx = farmPurchases.findIndex((p) => p.id === Number(id))
   if (idx === -1) throw new Error('采购记录不存在')
+  const purchase = farmPurchases[idx]
+  const material = farmMaterials.find((m) => m.name === purchase.material)
+  const qty = Number(purchase.quantity) || 0
+  // 删除采购记录同步扣回库存；若库存已被领用且不足扣回，则禁止删除避免数据失真
+  if (material) {
+    if (Number(material.stock) < qty) {
+      throw new Error(`农资「${material.name}」当前库存 ${material.stock}${material.unit}，不足以扣回本次采购的 ${qty}${material.unit}，无法删除`)
+    }
+    material.stock = Number(material.stock) - qty
+    material.updateTime = stampNow()
+  }
   farmPurchases.splice(idx, 1)
   persistBiz()
-  return { success: true }
+  return { success: true, stockAfter: material ? material.stock : null }
 }
 
 export async function getFarmHarvestApi(params = {}) {

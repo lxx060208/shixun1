@@ -8,6 +8,7 @@ import {
   shipOrderApi,
   getCustomersApi,
   getProductsApi,
+  getProductPlotOptionsApi,
 } from '@/api'
 
 const loading = ref(false)
@@ -16,12 +17,13 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
 
-const filters = reactive({ keyword: '', status: '', customerId: '', dateRange: [] })
+const filters = reactive({ keyword: '', status: '', customerId: '', plotCode: '', dateRange: [] })
 const statusOptions = ['待支付', '已发货', '已完成']
 const stats = reactive({ pending: 0, shipped: 0, finished: 0, amount: 0 })
 
 const customerOptions = ref([])
 const productOptions = ref([])
+const plotOptions = ref([])
 
 const createVisible = ref(false)
 const creating = ref(false)
@@ -51,6 +53,11 @@ const shipRules = {
 }
 
 const selectedProduct = computed(() => productOptions.value.find((p) => p.id === orderForm.productId))
+const selectedPlanting = computed(() => {
+  const p = selectedProduct.value
+  if (!p) return null
+  return { plot: p.plot, crop: p.crop, batchNo: p.batchNo, owner: p.plotOwner }
+})
 const orderAmount = computed(() => {
   const product = selectedProduct.value
   if (!product) return 0
@@ -102,12 +109,14 @@ async function load() {
 
 async function loadOptions() {
   try {
-    const [customers, products] = await Promise.all([
+    const [customers, products, plots] = await Promise.all([
       getCustomersApi({ page: 1, pageSize: 999 }),
       getProductsApi({ status: '上架', page: 1, pageSize: 999 }),
+      getProductPlotOptionsApi(),
     ])
     customerOptions.value = customers.list
     productOptions.value = products.list
+    plotOptions.value = plots
   } catch (e) {
     ElMessage.error(e.message || '加载客户或农产品数据失败')
   }
@@ -122,6 +131,7 @@ function resetFilters() {
   filters.keyword = ''
   filters.status = ''
   filters.customerId = ''
+  filters.plotCode = ''
   filters.dateRange = []
   page.value = 1
   load()
@@ -247,7 +257,7 @@ onMounted(() => {
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="关键字">
-              <el-input v-model="filters.keyword" placeholder="订单号 / 客户 / 农产品 / 运单号" clearable @keyup.enter="search" />
+              <el-input v-model="filters.keyword" placeholder="订单号 / 客户 / 农产品 / 地块 / 运单号" clearable @keyup.enter="search" />
             </el-form-item>
           </el-col>
           <el-col :xs="12" :sm="6" :md="4">
@@ -275,6 +285,18 @@ onMounted(() => {
                 end-placeholder="结束日期"
                 style="width: 100%"
               />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="6">
+            <el-form-item label="种植地块">
+              <el-select v-model="filters.plotCode" placeholder="全部地块" clearable filterable style="width: 100%">
+                <el-option
+                  v-for="p in plotOptions"
+                  :key="p.code"
+                  :label="`${p.name} · ${p.crop}`"
+                  :value="p.code"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -315,6 +337,19 @@ onMounted(() => {
           <template #default="{ row }">
             <div>{{ row.product }}</div>
             <div class="sub-text">{{ row.productSpec }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="种植地块 / 作物" min-width="180">
+          <template #default="{ row }">
+            <div v-if="row.plot" class="plot-cell">
+              <el-tag v-if="row.plotCode" size="small" effect="plain" type="success">{{ row.plotCode }}</el-tag>
+              <span class="plot-name">{{ row.plot }}</span>
+            </div>
+            <div v-else class="sub-text">未关联地块</div>
+            <div class="sub-text">
+              {{ row.crop || '—' }}
+              <template v-if="row.batchNo"> · 批次 {{ row.batchNo }}</template>
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="数量" width="95" align="right">
@@ -373,9 +408,17 @@ onMounted(() => {
           <el-select v-model="orderForm.productId" filterable placeholder="请选择农产品" style="width: 100%">
             <el-option v-for="p in productOptions" :key="p.id" :label="p.name" :value="p.id">
               <span>{{ p.name }}</span>
-              <span class="option-sub">￥{{ money(p.price) }}/{{ p.unit }}</span>
+              <span class="option-sub">￥{{ money(p.price) }}/{{ p.unit }}<template v-if="p.plot"> · {{ p.plotCode }}</template></span>
             </el-option>
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="selectedPlanting" label="种植来源">
+          <div class="planting-tip">
+            <el-tag v-if="selectedProduct?.plotCode" size="small" effect="plain" type="success">{{ selectedProduct.plotCode }}</el-tag>
+            <span>{{ selectedPlanting.plot || '未关联地块' }}</span>
+            <span class="planting-sub">作物 {{ selectedPlanting.crop || '—' }}</span>
+            <span v-if="selectedPlanting.batchNo" class="planting-sub">批次 {{ selectedPlanting.batchNo }}</span>
+          </div>
         </el-form-item>
         <el-form-item label="采购数量" prop="qty">
           <el-input-number v-model="orderForm.qty" :min="1" :max="selectedProduct ? selectedProduct.stock : 99999" style="width: 200px" />
@@ -424,6 +467,13 @@ onMounted(() => {
           <el-descriptions-item label="客户">{{ orderDetail.customer }}（{{ orderDetail.customerLevel }}级）</el-descriptions-item>
           <el-descriptions-item label="农产品">{{ orderDetail.product }}</el-descriptions-item>
           <el-descriptions-item label="规格 / 数量">{{ orderDetail.productSpec }} / {{ orderDetail.qty }} {{ orderDetail.unit }}</el-descriptions-item>
+          <el-descriptions-item label="种植地块">
+            {{ orderDetail.plot ? `${orderDetail.plotCode} ${orderDetail.plot}` : '未关联地块' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="种植作物 / 批次">
+            {{ orderDetail.crop || '—' }}{{ orderDetail.batchNo ? ` / ${orderDetail.batchNo}` : '' }}
+          </el-descriptions-item>
+          <el-descriptions-item label="地块负责人">{{ orderDetail.plotOwner || '—' }}</el-descriptions-item>
           <el-descriptions-item label="单价 / 金额">￥{{ money(orderDetail.unitPrice) }} / ￥{{ money(orderDetail.amount) }}</el-descriptions-item>
           <el-descriptions-item label="所属园区">{{ orderDetail.park }}</el-descriptions-item>
           <el-descriptions-item label="订单状态">
@@ -548,6 +598,38 @@ onMounted(() => {
   font-size: 12px;
   color: #868e96;
   margin-top: 2px;
+}
+
+.plot-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planting-tip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f1f8f4;
+  border: 1px dashed #b7e4c7;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #2b8a3e;
+  line-height: 1.5;
+}
+
+.planting-sub {
+  font-size: 12px;
+  color: #868e96;
 }
 
 .option-sub {

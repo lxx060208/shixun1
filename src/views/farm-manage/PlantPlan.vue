@@ -43,6 +43,16 @@ function statusType(status) {
   return { 未开始: 'info', 进行中: 'warning', 已完成: 'success' }[status] || 'info'
 }
 
+// 关联工单状态颜色（待派单灰 / 已派单蓝 / 进行中橙 / 已完成绿）
+function orderStatusClass(status) {
+  return {
+    待派单: 'status-tag--pending',
+    已派单: 'status-tag--assigned',
+    进行中: 'status-tag--doing',
+    已完成: 'status-tag--done',
+  }[status] || 'status-tag--pending'
+}
+
 async function load() {
   loading.value = true
   try {
@@ -116,8 +126,14 @@ async function submitForm() {
     }
     saving.value = true
     try {
-      await saveFarmPlanApi({ ...form, startDate: dateRange.value[0], endDate: dateRange.value[1] })
-      ElMessage.success(isEdit.value ? '种植计划已更新' : '种植计划已创建')
+      const res = await saveFarmPlanApi({ ...form, startDate: dateRange.value[0], endDate: dateRange.value[1] })
+      const action = isEdit.value ? '种植计划已更新' : '种植计划已创建'
+      // 计划保存后已自动生成/同步农事工单，提示单号与状态
+      if (res?.orderNo) {
+        ElMessage.success(`${action}，已${res.orderCreated ? '生成' : '同步'}农事工单「${res.orderNo}」（${res.orderStatus}）`)
+      } else {
+        ElMessage.success(action)
+      }
       dialogVisible.value = false
       load()
     } catch (e) {
@@ -139,8 +155,14 @@ async function removePlan(row) {
     return
   }
   try {
-    await deleteFarmPlanApi(row.id)
-    ElMessage.success('种植计划已删除')
+    const res = await deleteFarmPlanApi(row.id)
+    if (res?.removedOrderNo) {
+      ElMessage.success(`种植计划已删除，关联工单「${res.removedOrderNo}」已同步撤销`)
+    } else if (res?.keptOrderNo) {
+      ElMessage.success(`种植计划已删除，关联工单「${res.keptOrderNo}」已有执行记录，已保留`)
+    } else {
+      ElMessage.success('种植计划已删除')
+    }
     load()
   } catch (e) {
     ElMessage.error(e.message || '删除失败')
@@ -208,6 +230,15 @@ onMounted(load)
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="关联工单" min-width="170">
+          <template #default="{ row }">
+            <div v-if="row.orderNo" class="order-cell">
+              <span class="order-no">{{ row.orderNo }}</span>
+              <el-tag :class="orderStatusClass(row.orderStatus)" size="small">{{ row.orderStatus }}</el-tag>
+            </div>
+            <span v-else class="op-none">未生成</span>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160" />
@@ -286,6 +317,7 @@ onMounted(load)
             style="width: 100%"
           />
         </el-form-item>
+        <div class="plan-tip">保存后自动生成/同步农事工单（截止日期取计划结束日期）；未指定执行人时按同园区、专业对口自动指派。</div>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -336,6 +368,30 @@ onMounted(load)
 .date-range {
   font-size: 12px;
   color: #5c6470;
+}
+
+.order-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.order-no {
+  font-size: 12px;
+  color: #5c6470;
+}
+
+.op-none {
+  font-size: 12px;
+  color: #adb5bd;
+}
+
+.plan-tip {
+  margin: -4px 0 0 90px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #868e96;
 }
 
 .pagination {

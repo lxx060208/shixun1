@@ -131,6 +131,8 @@ onMounted(load)
 }
 
 .metric-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -141,19 +143,54 @@ onMounted(load)
   border-radius: 14px;
   border-top: 4px solid #16a34a;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  animation: riseIn 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
-.metric-card:nth-child(1) { border-top-color:#2563eb; background:linear-gradient(160deg,#eff6ff,#fff 70%); }
-.metric-card:nth-child(2) { border-top-color:#16a34a; background:linear-gradient(160deg,#f0fdf4,#fff 70%); }
-.metric-card:nth-child(3) { border-top-color:#06b6d4; background:linear-gradient(160deg,#ecfeff,#fff 70%); }
-.metric-card:nth-child(4) { border-top-color:#7c3aed; background:linear-gradient(160deg,#f5f3ff,#fff 70%); }
-.metric-card:nth-child(5) { border-top-color:#0284c7; background:linear-gradient(160deg,#f0f9ff,#fff 70%); }
-.metric-card:nth-child(6) { border-top-color:#f59e0b; background:linear-gradient(160deg,#fffbeb,#fff 70%); }
-.metric-card:nth-child(7) { border-top-color:#64748b; background:linear-gradient(160deg,#f8fafc,#fff 70%); }
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.12);
+}
+/* 指标卡片依次错落入场 */
+.el-row > .el-col:nth-child(1) .metric-card { border-top-color:#2563eb; background:linear-gradient(160deg,#eff6ff,#fff 70%); animation-delay: 0ms; }
+.el-row > .el-col:nth-child(2) .metric-card { border-top-color:#16a34a; background:linear-gradient(160deg,#f0fdf4,#fff 70%); animation-delay: 50ms; }
+.el-row > .el-col:nth-child(3) .metric-card { border-top-color:#06b6d4; background:linear-gradient(160deg,#ecfeff,#fff 70%); animation-delay: 100ms; }
+.el-row > .el-col:nth-child(4) .metric-card { border-top-color:#7c3aed; background:linear-gradient(160deg,#f5f3ff,#fff 70%); animation-delay: 150ms; }
+.el-row > .el-col:nth-child(5) .metric-card { border-top-color:#0284c7; background:linear-gradient(160deg,#f0f9ff,#fff 70%); animation-delay: 200ms; }
+.el-row > .el-col:nth-child(6) .metric-card { border-top-color:#f59e0b; background:linear-gradient(160deg,#fffbeb,#fff 70%); animation-delay: 250ms; }
+.el-row > .el-col:nth-child(7) .metric-card { border-top-color:#64748b; background:linear-gradient(160deg,#f8fafc,#fff 70%); animation-delay: 300ms; }
 .m-label { font-size: 14px; font-weight: 600; color: var(--samp-text-secondary); }
 .m-value { font-size: 28px; font-weight: 800; color: var(--samp-text-main); }
 .m-value em { font-style: normal; font-size: 13px; font-weight: 500; color: var(--samp-text-secondary); margin-left: 3px; }
 
-.chart-card { margin-bottom: 16px; }
+.chart-card { margin-bottom: 16px; animation: riseIn 0.5s 0.12s ease backwards; }
+
+/* 风向进度条平滑增长 + 渐变配色 */
+.wind-bar :deep(.el-progress-bar__inner) {
+  transition: width 0.8s ease;
+  background: linear-gradient(90deg, #67e8f9, #0891b2);
+}
+
+.wind-item {
+  animation: riseIn 0.4s ease backwards;
+}
+.wind-item:nth-child(2) { animation-delay: 60ms; }
+.wind-item:nth-child(3) { animation-delay: 120ms; }
+.wind-item:nth-child(4) { animation-delay: 180ms; }
+.wind-item:nth-child(5) { animation-delay: 240ms; }
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metric-card,
+  .chart-card,
+  .wind-item {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 
 .chart-head {
   display: flex;

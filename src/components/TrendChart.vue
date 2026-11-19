@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   labels: { type: Array, default: () => [] },
@@ -96,11 +96,24 @@ function barWidth() {
   const buckets = Math.max(1, n.value)
   return Math.min(44, (innerW.value / buckets) * 0.6)
 }
+
+// 数据变化时重建 SVG，重新播放入场动效
+const animKey = ref(0)
+watch(
+  () => [props.labels, props.series, props.type],
+  () => { animKey.value += 1 },
+  { deep: true },
+)
+
+// 点位逐个弹出，控制总时长避免尾部等待过久
+function dotDelay(i, si = 0) {
+  return `${Math.min(320 + i * 26, 1300) + si * 180}ms`
+}
 </script>
 
 <template>
   <div ref="container" class="trend-chart" :style="{ height: height + 'px' }">
-    <svg v-if="width" :width="width" :height="height" class="chart-svg">
+    <svg v-if="width" :key="animKey" :width="width" :height="height" class="chart-svg">
       <!-- 网格 -->
       <g>
         <template v-for="g in gridLines" :key="g.y">
@@ -136,14 +149,31 @@ function barWidth() {
           :height="pad.top + innerH - y(v)"
           :fill="series[0]?.color || '#16a34a'"
           rx="3"
+          class="bar"
+          :style="{ animationDelay: `${i * 45}ms` }"
         />
       </g>
 
       <!-- 折线 -->
       <template v-else>
-        <g v-for="s in series" :key="s.name">
-          <polyline v-if="showArea" :points="areaPoints(s.data)" :fill="s.color + '22'" stroke="none" />
-          <polyline :points="linePoints(s.data)" fill="none" :stroke="s.color" stroke-width="2" class="line" />
+        <g v-for="(s, si) in series" :key="s.name">
+          <polyline
+            v-if="showArea"
+            :points="areaPoints(s.data)"
+            :fill="s.color + '22'"
+            stroke="none"
+            class="area"
+            :style="{ animationDelay: `${si * 180 + 160}ms` }"
+          />
+          <polyline
+            :points="linePoints(s.data)"
+            fill="none"
+            :stroke="s.color"
+            stroke-width="2"
+            class="line"
+            pathLength="1"
+            :style="{ animationDelay: `${si * 180}ms` }"
+          />
           <circle
             v-for="(v, i) in s.data"
             :key="i"
@@ -151,6 +181,8 @@ function barWidth() {
             :cy="y(v)"
             :r="2.5"
             :fill="s.color"
+            class="dot"
+            :style="{ animationDelay: dotDelay(i, si) }"
           />
         </g>
       </template>
@@ -171,14 +203,69 @@ function barWidth() {
 .grid-line {
   stroke: #eef0f4;
   stroke-width: 1;
+  animation: fadeIn 0.45s ease backwards;
 }
 
 .axis-label {
   font-size: 12px;
   fill: #8a93a0;
+  animation: fadeIn 0.45s 0.1s ease backwards;
 }
 
+/* 折线自左向右描边绘制 */
 .line {
-  transition: opacity 0.2s;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: drawLine 1.1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+/* 面积区域淡入 */
+.area {
+  animation: fadeIn 0.7s ease backwards;
+}
+
+/* 数据点逐个弹出 */
+.dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: dotIn 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes dotIn {
+  from { opacity: 0; transform: scale(0); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 柱状从基线向上生长 */
+.bar {
+  transform-box: fill-box;
+  transform-origin: bottom;
+  animation: barGrow 0.55s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+}
+
+@keyframes barGrow {
+  from { opacity: 0; transform: scaleY(0); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grid-line,
+  .axis-label,
+  .line,
+  .area,
+  .dot,
+  .bar {
+    animation: none !important;
+  }
+  .line { stroke-dasharray: none; }
 }
 </style>

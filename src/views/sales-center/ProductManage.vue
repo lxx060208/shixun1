@@ -1,20 +1,32 @@
 <script setup>
-import { reactive, ref, onMounted } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getProductsApi, saveProductApi, toggleProductStatusApi, deleteProductApi } from '@/api'
+import { getProductsApi, saveProductApi, toggleProductStatusApi, deleteProductApi, getProductPlotOptionsApi } from '@/api'
 
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
-const summary = reactive({ onShelf: 0, offShelf: 0, lowStock: 0 })
+const summary = reactive({ onShelf: 0, offShelf: 0, lowStock: 0, linkedPlots: 0 })
 
-const filters = reactive({ keyword: '', category: '', status: '', park: '' })
+const filters = reactive({ keyword: '', category: '', status: '', park: '', plotCode: '' })
+
 const categoryOptions = ['蔬菜', '水果', '粮食', '禽蛋']
 const gradeOptions = ['A级', 'B级', 'C级']
 const statusOptions = ['上架', '下架']
 const parkOptions = ['南山智慧农业示范园', '清水有机蔬菜基地', '花溪生态果园']
+
+// 可关联的种植地块（按园区分组展示）
+const plotOptions = ref([])
+const plotGroups = computed(() => {
+  const map = new Map()
+  plotOptions.value.forEach((p) => {
+    if (!map.has(p.park)) map.set(p.park, [])
+    map.get(p.park).push(p)
+  })
+  return [...map.entries()].map(([park, options]) => ({ park, options }))
+})
 
 const dialogVisible = ref(false)
 const saving = ref(false)
@@ -33,6 +45,8 @@ const emptyForm = () => ({
   stock: 0,
   park: '南山智慧农业示范园',
   status: '上架',
+  plotCode: '',
+  crop: '',
   image: '',
   description: '',
 })
@@ -61,6 +75,7 @@ async function load() {
     summary.onShelf = res.onShelf
     summary.offShelf = res.offShelf
     summary.lowStock = res.lowStock
+    summary.linkedPlots = res.linkedPlots || 0
     const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
     if (page.value > maxPage) {
       page.value = maxPage
@@ -83,6 +98,7 @@ function resetFilters() {
   filters.category = ''
   filters.status = ''
   filters.park = ''
+  filters.plotCode = ''
   page.value = 1
   load()
 }
@@ -118,10 +134,23 @@ function openEdit(row) {
     stock: row.stock,
     park: row.park,
     status: row.status,
+    plotCode: row.plotCode || '',
+    crop: row.crop || '',
     image: row.image,
     description: row.description,
   })
   dialogVisible.value = true
+}
+
+// 选定地块后自动带出所属园区与种植作物，避免产销数据与地块档案不一致
+function changePlot(code) {
+  const plot = plotOptions.value.find((p) => p.code === code)
+  if (!plot) {
+    form.crop = ''
+    return
+  }
+  form.park = plot.park
+  form.crop = plot.crop
 }
 
 async function submitForm() {
@@ -181,7 +210,18 @@ async function removeProduct(row) {
   }
 }
 
-onMounted(load)
+async function loadPlots() {
+  try {
+    plotOptions.value = await getProductPlotOptionsApi()
+  } catch (e) {
+    plotOptions.value = []
+  }
+}
+
+onMounted(() => {
+  load()
+  loadPlots()
+})
 </script>
 
 <template>
@@ -192,22 +232,28 @@ onMounted(load)
     </div>
 
     <el-row :gutter="16" class="stat-row">
-      <el-col :xs="12" :sm="8">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card">
           <div class="stat-value">{{ summary.onShelf }}</div>
           <div class="stat-label">在售农产品（款）</div>
         </el-card>
       </el-col>
-      <el-col :xs="12" :sm="8">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card">
           <div class="stat-value">{{ summary.offShelf }}</div>
           <div class="stat-label">已下架农产品（款）</div>
         </el-card>
       </el-col>
-      <el-col :xs="24" :sm="8">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card">
           <div class="stat-value warn">{{ summary.lowStock }}</div>
           <div class="stat-label">低库存预警（库存 &lt; 200）</div>
+        </el-card>
+      </el-col>
+      <el-col :xs="12" :sm="6">
+        <el-card shadow="never" class="stat-card">
+          <div class="stat-value plot">{{ summary.linkedPlots }}</div>
+          <div class="stat-label">已关联种植地块（块）</div>
         </el-card>
       </el-col>
     </el-row>
@@ -217,7 +263,7 @@ onMounted(load)
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="关键字">
-              <el-input v-model="filters.keyword" placeholder="编号 / 名称 / 品种 / 规格" clearable @keyup.enter="search" />
+              <el-input v-model="filters.keyword" placeholder="编号 / 名称 / 品种 / 地块 / 作物" clearable @keyup.enter="search" />
             </el-form-item>
           </el-col>
           <el-col :xs="12" :sm="6" :md="4">
@@ -234,8 +280,17 @@ onMounted(load)
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="所属园区">
+          <el-col :xs="24" :sm="12" :md="4">
+            <el-form-item label="地块">
+              <el-select v-model="filters.plotCode" placeholder="全部地块" clearable filterable style="width: 100%">
+                <el-option-group v-for="g in plotGroups" :key="g.park" :label="g.park">
+                  <el-option v-for="p in g.options" :key="p.code" :label="`${p.name} · ${p.crop}`" :value="p.code" />
+                </el-option-group>
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="4">
+            <el-form-item label="园区">
               <el-select v-model="filters.park" placeholder="全部园区" clearable style="width: 100%">
                 <el-option v-for="p in parkOptions" :key="p" :label="p" :value="p" />
               </el-select>
@@ -279,6 +334,18 @@ onMounted(load)
         <el-table-column prop="category" label="品类" width="80" align="center" />
         <el-table-column label="品种 / 等级" min-width="120">
           <template #default="{ row }">{{ row.variety }} / {{ row.grade }}</template>
+        </el-table-column>
+        <el-table-column label="种植地块 / 作物" min-width="195">
+          <template #default="{ row }">
+            <div class="plot-cell">
+              <el-tag v-if="row.plotCode" size="small" effect="plain" type="success">{{ row.plotCode }}</el-tag>
+              <span class="plot-name">{{ row.plot || '未关联地块' }}</span>
+            </div>
+            <div class="sub-text">
+              {{ row.crop || '—' }}
+              <template v-if="row.batchNo"> · 采收批次 {{ row.batchNo }}</template>
+            </div>
+          </template>
         </el-table-column>
         <el-table-column prop="spec" label="包装规格" width="100" />
         <el-table-column label="单价" width="110" align="right">
@@ -352,6 +419,30 @@ onMounted(load)
             </el-form-item>
           </el-col>
           <el-col :span="12">
+            <el-form-item label="种植地块">
+              <el-select
+                v-model="form.plotCode"
+                placeholder="选择农产品来源地块"
+                clearable
+                filterable
+                style="width: 100%"
+                @change="changePlot"
+              >
+                <el-option-group v-for="g in plotGroups" :key="g.park" :label="g.park">
+                  <el-option v-for="p in g.options" :key="p.code" :value="p.code" :label="`${p.name} · ${p.crop}`">
+                    <span>{{ p.name }}</span>
+                    <span class="option-sub">{{ p.crop }} · {{ p.area }}亩 · {{ p.owner }}</span>
+                  </el-option>
+                </el-option-group>
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="种植作物">
+              <el-input v-model="form.crop" placeholder="选定地块后自动带出，可调整" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="包装规格" prop="spec">
               <el-input v-model="form.spec" placeholder="如：5kg/箱" />
             </el-form-item>
@@ -377,9 +468,10 @@ onMounted(load)
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属园区" prop="park">
-              <el-select v-model="form.park" style="width: 100%">
+              <el-select v-model="form.park" :disabled="!!form.plotCode" style="width: 100%">
                 <el-option v-for="p in parkOptions" :key="p" :label="p" :value="p" />
               </el-select>
+              <div v-if="form.plotCode" class="field-tip">已由种植地块自动带出</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -433,6 +525,10 @@ onMounted(load)
 
 .stat-value.warn {
   color: #e8590c;
+}
+
+.stat-value.plot {
+  color: #1c7ed6;
 }
 
 .stat-label {
@@ -492,6 +588,38 @@ onMounted(load)
 .stock-low {
   color: #e8590c;
   font-weight: 600;
+}
+
+.plot-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub-text {
+  font-size: 12px;
+  color: #868e96;
+  margin-top: 2px;
+}
+
+.option-sub {
+  float: right;
+  font-size: 12px;
+  color: #868e96;
+}
+
+.field-tip {
+  font-size: 12px;
+  color: #868e96;
+  line-height: 1.4;
+  margin-top: 2px;
 }
 
 .pagination {

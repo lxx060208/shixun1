@@ -3,6 +3,11 @@ import { reactive, ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getFarmOrdersApi, createFarmOrderApi, assignFarmOrderApi, updateFarmOrderStatusApi, deleteFarmOrderApi } from '@/api'
 import { farmOperationTypes, farmPlotNameList, farmers, taskTypeSpecialtyMap, getFarmPlotPark } from '@/api/mock'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+// 工单下发/指派/状态流转/删除仅系统管理员可操作，其余角色仅可查看
+const isAdmin = computed(() => auth.userInfo?.roleCode === 'admin')
 
 const statusOptions = ['待派单', '已派单', '进行中', '已完成']
 
@@ -31,6 +36,16 @@ const assignableFarmers = computed(() => {
 })
 const form = reactive({ orderNo: '', title: '', plot: '', taskType: '', deadline: '' })
 
+// 下发时自动指派预览：同园区 + 专业对口人员（实际由接口按未完成工单最少者分配）
+const autoAssignPreview = computed(() => {
+  if (!form.plot || !form.taskType) return '选择地块与任务类型后，系统将自动指派给对应专业的工作人员'
+  const park = getFarmPlotPark(form.plot)
+  const specialty = taskTypeSpecialtyMap[form.taskType] || ''
+  const candidates = farmers.filter((f) => f.park === park && f.specialty === specialty)
+  if (!candidates.length) return `园区「${park}」暂无「${specialty}」专业人员，下发后需手动指派`
+  return `园区「${park}」专业「${specialty}」人员：${candidates.map((f) => f.name).join('、')}，将自动指派给任务最少者`
+})
+
 const rules = {
   orderNo: [{ required: true, message: '请输入工单编号', trigger: 'blur' }],
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
@@ -38,8 +53,14 @@ const rules = {
   taskType: [{ required: true, message: '请选择任务类型', trigger: 'change' }],
 }
 
-function statusType(status) {
-  return { 待派单: 'info', 已派单: 'primary', 进行中: 'warning', 已完成: 'success' }[status] || 'info'
+// 不同工单状态使用不同颜色的状态标签（待派单灰 / 已派单蓝 / 进行中橙 / 已完成绿）
+function statusClass(status) {
+  return {
+    待派单: 'status-tag--pending',
+    已派单: 'status-tag--assigned',
+    进行中: 'status-tag--doing',
+    已完成: 'status-tag--done',
+  }[status] || 'status-tag--pending'
 }
 
 const flowMap = { 待派单: ['已派单'], 已派单: ['进行中'], 进行中: ['已完成'], 已完成: [] }
@@ -107,8 +128,8 @@ async function submitForm() {
     if (!valid) return
     saving.value = true
     try {
-      await createFarmOrderApi({ ...form })
-      ElMessage.success('工单已下发')
+      const res = await createFarmOrderApi({ ...form })
+      ElMessage.success(res.assignee ? `工单已下发，已自动指派给「${res.assignee}」` : '工单已下发，暂无匹配专业人员，请手动指派')
       dialogVisible.value = false
       load()
     } catch (e) {
@@ -181,7 +202,7 @@ onMounted(load)
   <div class="page-container">
     <div class="page-header">
       <h2 class="page-title">农事工单派单</h2>
-      <span class="page-desc">任务下发、指派农户、工单状态流转闭环管理</span>
+      <span class="page-desc">{{ isAdmin ? '下发后按园区与专业自动指派，也可手动调整，工单状态流转闭环管理' : '工单仅系统管理员可下发、指派与流转，当前账号仅可查看' }}</span>
     </div>
 
     <el-card shadow="never" class="filter-card">
@@ -213,7 +234,7 @@ onMounted(load)
       <template #header>
         <div class="card-header">
           <span class="table-title">农事工单<span class="record-count">共 {{ total }} 单</span></span>
-          <el-button type="primary" size="small" @click="openCreate"><el-icon><Plus /></el-icon>下发工单</el-button>
+          <el-button v-if="isAdmin" type="primary" size="small" @click="openCreate"><el-icon><Plus /></el-icon>下发工单</el-button>
         </div>
       </template>
 
@@ -231,12 +252,12 @@ onMounted(load)
         <el-table-column prop="deadline" label="截止日期" width="110" align="center" />
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
+            <el-tag :class="statusClass(row.status)" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column v-if="isAdmin" label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            <el-button v-if="row.status !== '已完成'" link type="primary" size="small" @click="openAssign(row)">指派</el-button>
+            <el-button v-if="row.status !== '已完成'" link type="primary" size="small" @click="openAssign(row)">{{ row.assignee ? '调整指派' : '手动指派' }}</el-button>
             <el-dropdown v-if="nextStatuses(row.status).length" trigger="click" @command="(s) => changeStatus(row, s)">
               <el-button link type="warning" size="small">
                 状态流转<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -293,6 +314,9 @@ onMounted(load)
         <el-form-item label="截止日期">
           <el-date-picker v-model="form.deadline" type="date" placeholder="请选择截止日期" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
+        <el-form-item label="指派方式">
+          <div class="assign-auto-tip">{{ autoAssignPreview }}</div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -300,7 +324,7 @@ onMounted(load)
       </template>
     </el-dialog>
 
-    <el-dialog v-model="assignVisible" title="指派农户" width="480px" destroy-on-close>
+    <el-dialog v-model="assignVisible" :title="currentOrder?.assignee ? '手动调整指派' : '手动指派农户'" width="480px" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="工单">
           <span class="assign-order">{{ currentOrder?.orderNo }} · {{ currentOrder?.title }}</span>
@@ -308,11 +332,16 @@ onMounted(load)
         <el-form-item label="任务要求">
           <span class="assign-require">任务类型「{{ currentOrder?.taskType }}」→ 专业「{{ requiredSpecialty }}」 · 园区「{{ currentOrderPark }}」</span>
         </el-form-item>
+        <el-form-item label="当前指派">
+          <span v-if="currentOrder?.assignee" class="assign-order">{{ currentOrder.assignee }}</span>
+          <el-tag v-else type="info" size="small">未指派</el-tag>
+        </el-form-item>
         <el-form-item label="指派农户">
           <el-select v-model="assignForm.assignee" placeholder="请选择同园区、专业对口人员" style="width: 100%">
             <el-option v-for="f in assignableFarmers" :key="f.id" :label="`${f.name}（${f.specialty}）`" :value="f.id" />
           </el-select>
           <div v-if="!assignableFarmers.length" class="assign-empty">当前园区暂无「{{ requiredSpecialty }}」专业人员，请先补充人员</div>
+          <div v-else class="assign-hint">仅可选择同园区、专业对口人员，手动指派将覆盖自动指派结果</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -376,6 +405,18 @@ onMounted(load)
   margin-top: 6px;
   font-size: 12px;
   color: #f56c6c;
+}
+
+.assign-auto-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #1c7ed6;
+}
+
+.assign-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #adb5bd;
 }
 
 .pagination {

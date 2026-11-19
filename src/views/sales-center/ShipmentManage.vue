@@ -205,6 +205,16 @@ onMounted(load)
         <el-table-column label="农产品 / 数量" min-width="170">
           <template #default="{ row }">{{ row.product }} × {{ row.qty }} {{ row.unit }}</template>
         </el-table-column>
+        <el-table-column label="产地地块" min-width="150">
+          <template #default="{ row }">
+            <div v-if="row.plot" class="plot-cell">
+              <el-tag v-if="row.plotCode" size="small" effect="plain" type="success">{{ row.plotCode }}</el-tag>
+              <span class="plot-name">{{ row.plot }}</span>
+            </div>
+            <div v-else class="sub-text">未关联地块</div>
+            <div class="sub-text">{{ row.crop || '—' }}</div>
+          </template>
+        </el-table-column>
         <el-table-column prop="logisticsCompany" label="物流公司" width="110" />
         <el-table-column prop="logisticsNo" label="物流单号" width="175" />
         <el-table-column prop="shipTime" label="发货时间" width="150" />
@@ -256,6 +266,9 @@ onMounted(load)
           <div class="order-brief">
             <span>{{ selectedOrder.product }} × {{ selectedOrder.qty }} {{ selectedOrder.unit }}</span>
             <span class="order-amount">￥{{ money(selectedOrder.amount) }}</span>
+          </div>
+          <div v-if="selectedOrder.plot" class="origin-tip">
+            产地：{{ selectedOrder.plotCode }} {{ selectedOrder.plot }} · {{ selectedOrder.crop || '—' }}
           </div>
         </el-form-item>
         <el-form-item label="物流公司" prop="logisticsCompany">
@@ -392,6 +405,35 @@ onMounted(load)
 .order-amount {
   font-weight: 700;
   color: #e8590c;
+}
+
+.plot-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.plot-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sub-text {
+  font-size: 12px;
+  color: #868e96;
+  margin-top: 2px;
+}
+
+.origin-tip {
+  margin-top: 6px;
+  padding: 4px 10px;
+  width: 100%;
+  font-size: 12px;
+  color: #2b8a3e;
+  background: #f1f8f4;
+  border-radius: 6px;
 }
 
 .timeline-title {

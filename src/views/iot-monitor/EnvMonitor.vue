@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getOverviewApi, parks } from '@/api/iot'
@@ -10,6 +10,40 @@ const router = useRouter()
 const loading = ref(true)
 const data = ref(null)
 const currentPark = ref('all')
+
+// 实时时钟：数据更新时间每秒跳动，配合呼吸灯营造实时感
+const liveTime = ref(new Date())
+let clockTimer = 0
+
+// KPI 数字滚动动画：数据到达后从 0（或上一次值）平滑递增到目标值
+const displayStats = reactive({ totalDevices: 0, online: 0, offline: 0, onlineRate: 0, alarmCount: 0 })
+let statsRaf = 0
+
+function animateStats() {
+  cancelAnimationFrame(statsRaf)
+  if (!data.value) return
+  const targets = {
+    totalDevices: Number(data.value.stats.totalDevices) || 0,
+    online: Number(data.value.stats.online) || 0,
+    offline: Number(data.value.stats.offline) || 0,
+    onlineRate: Number(data.value.stats.onlineRate) || 0,
+    alarmCount: Number(data.value.stats.alarmCount) || 0,
+  }
+  const from = { ...displayStats }
+  const duration = 900
+  const startAt = performance.now()
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3)
+  const step = (now) => {
+    const p = Math.min(1, (now - startAt) / duration)
+    const k = easeOut(p)
+    Object.keys(targets).forEach((key) => {
+      const v = from[key] + (targets[key] - from[key]) * k
+      displayStats[key] = key === 'onlineRate' ? Number(v.toFixed(1)) : Math.round(v)
+    })
+    if (p < 1) statsRaf = requestAnimationFrame(step)
+  }
+  statsRaf = requestAnimationFrame(step)
+}
 
 const currentParkName = computed(() => parks.find((p) => p.id === currentPark.value)?.name || '全部园区')
 
@@ -28,6 +62,7 @@ async function load() {
   loading.value = true
   data.value = await getOverviewApi(currentPark.value)
   loading.value = false
+  animateStats()
 }
 
 function onParkChange() {
@@ -48,7 +83,17 @@ function deviceStatusType(s) {
   return s === 'online' ? 'success' : 'info'
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  clockTimer = setInterval(() => {
+    liveTime.value = new Date()
+  }, 1000)
+})
+
+onBeforeUnmount(() => {
+  clearInterval(clockTimer)
+  cancelAnimationFrame(statsRaf)
+})
 </script>
 
 <template>
@@ -58,7 +103,10 @@ onMounted(load)
         <h3 class="page-title">环境监测总览</h3>
         <p class="page-subtitle">空气 · 土壤 · 水体 · 气象多维数据实时汇总</p>
       </div>
-      <el-button :icon="'Refresh'" @click="refresh">刷新数据</el-button>
+      <div class="header-actions">
+        <span class="live-badge"><i class="live-dot" />实时监测 {{ liveTime.toLocaleTimeString('zh-CN') }}</span>
+        <el-button :icon="'Refresh'" @click="refresh">刷新数据</el-button>
+      </div>
     </div>
 
     <div class="park-bar">
@@ -74,25 +122,25 @@ onMounted(load)
         <el-col :xs="12" :sm="8" :md="4">
           <div class="kpi-card">
             <span class="kpi-label">设备总数</span>
-            <span class="kpi-value">{{ data.stats.totalDevices }}</span>
+            <span class="kpi-value">{{ displayStats.totalDevices }}</span>
           </div>
         </el-col>
         <el-col :xs="12" :sm="8" :md="4">
-          <div class="kpi-card"><span class="kpi-label">在线</span><span class="kpi-value green">{{ data.stats.online }}</span></div>
+          <div class="kpi-card"><span class="kpi-label">在线</span><span class="kpi-value green">{{ displayStats.online }}</span></div>
         </el-col>
         <el-col :xs="12" :sm="8" :md="4">
-          <div class="kpi-card"><span class="kpi-label">掉线</span><span class="kpi-value red">{{ data.stats.offline }}</span></div>
+          <div class="kpi-card"><span class="kpi-label">掉线</span><span class="kpi-value red">{{ displayStats.offline }}</span></div>
         </el-col>
         <el-col :xs="12" :sm="8" :md="4">
-          <div class="kpi-card"><span class="kpi-label">在线率</span><span class="kpi-value">{{ data.stats.onlineRate }}%</span></div>
+          <div class="kpi-card"><span class="kpi-label">在线率</span><span class="kpi-value">{{ displayStats.onlineRate }}%</span></div>
         </el-col>
         <el-col :xs="12" :sm="8" :md="4">
-          <div class="kpi-card"><span class="kpi-label">待处置告警</span><span class="kpi-value orange">{{ data.stats.alarmCount }}</span></div>
+          <div class="kpi-card"><span class="kpi-label">待处置告警</span><span class="kpi-value orange">{{ displayStats.alarmCount }}</span></div>
         </el-col>
         <el-col :xs="12" :sm="8" :md="4">
           <div class="kpi-card">
             <span class="kpi-label">数据更新时间</span>
-            <span class="kpi-time">{{ new Date().toLocaleTimeString('zh-CN') }}</span>
+            <span class="kpi-time">{{ liveTime.toLocaleTimeString('zh-CN') }}</span>
           </div>
         </el-col>
       </el-row>
@@ -112,9 +160,12 @@ onMounted(load)
           <el-table-column prop="typeName" label="类型" width="90" />
           <el-table-column prop="location" label="安装位置" min-width="130" />
           <el-table-column prop="parkName" label="所属园区" min-width="160" />
-          <el-table-column label="状态" width="90">
+          <el-table-column label="状态" width="100">
             <template #default="{ row }">
-              <el-tag :type="deviceStatusType(row.status)" effect="light">{{ row.status === 'online' ? '在线' : '掉线' }}</el-tag>
+              <span class="status-cell">
+                <i class="status-dot" :class="row.status" />
+                <el-tag :type="deviceStatusType(row.status)" effect="light">{{ row.status === 'online' ? '在线' : '掉线' }}</el-tag>
+              </span>
             </template>
           </el-table-column>
           <el-table-column prop="lastOnline" label="最近在线" min-width="150" />
@@ -123,8 +174,8 @@ onMounted(load)
 
       <!-- 分类指标卡片 -->
       <el-row :gutter="16">
-        <el-col v-for="cat in data.categories" :key="cat.key" :xs="24" :sm="12" :lg="6">
-          <el-card shadow="never" class="cat-card clickable" @click="goDetail(cat.key)">
+        <el-col v-for="(cat, i) in data.categories" :key="cat.key" :xs="24" :sm="12" :lg="6">
+          <el-card shadow="never" class="cat-card clickable" :style="{ animationDelay: `${i * 70}ms` }" @click="goDetail(cat.key)">
             <div class="cat-head">
               <div class="cat-icon" :style="{ color: cat.color, background: cat.color + '1a' }">
                 <el-icon :size="20"><component :is="cat.icon" /></el-icon>
@@ -179,6 +230,41 @@ onMounted(load)
   justify-content: space-between;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 实时监测呼吸灯徽标 */
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  font-variant-numeric: tabular-nums;
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  animation: livePulse 1.6s infinite;
+}
+
+@keyframes livePulse {
+  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+
 .park-bar {
   display: flex;
   align-items: center;
@@ -195,6 +281,7 @@ onMounted(load)
 
 .device-card {
   margin-bottom: 16px;
+  animation: riseIn 0.45s ease backwards;
 }
 
 .panel-title {
@@ -208,6 +295,8 @@ onMounted(load)
 }
 
 .kpi-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -218,13 +307,45 @@ onMounted(load)
   border-top: 4px solid #16a34a;
   background: linear-gradient(160deg, #f0fdf4 0%, #ffffff 70%);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  animation: riseIn 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
-.kpi-card:nth-child(1) { border-top-color: #16a34a; background: linear-gradient(160deg, #f0fdf4 0%, #fff 70%); }
-.kpi-card:nth-child(2) { border-top-color: #2563eb; background: linear-gradient(160deg, #eff6ff 0%, #fff 70%); }
-.kpi-card:nth-child(3) { border-top-color: #e11d48; background: linear-gradient(160deg, #fff1f2 0%, #fff 70%); }
-.kpi-card:nth-child(4) { border-top-color: #7c3aed; background: linear-gradient(160deg, #f5f3ff 0%, #fff 70%); }
-.kpi-card:nth-child(5) { border-top-color: #f59e0b; background: linear-gradient(160deg, #fffbeb 0%, #fff 70%); }
-.kpi-card:nth-child(6) { border-top-color: #0891b2; background: linear-gradient(160deg, #ecfeff 0%, #fff 70%); }
+
+/* 卡片悬停光扫动效 */
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -80%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  transform: skewX(-18deg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.12);
+}
+
+.kpi-card:hover::before {
+  animation: cardSweep 0.8s ease;
+}
+
+@keyframes cardSweep {
+  from { left: -80%; opacity: 0.9; }
+  to { left: 130%; opacity: 0; }
+}
+
+/* KPI 依次错落入场 */
+.kpi-row > .el-col:nth-child(1) .kpi-card { border-top-color: #16a34a; background: linear-gradient(160deg, #f0fdf4 0%, #fff 70%); animation-delay: 0ms; }
+.kpi-row > .el-col:nth-child(2) .kpi-card { border-top-color: #2563eb; background: linear-gradient(160deg, #eff6ff 0%, #fff 70%); animation-delay: 60ms; }
+.kpi-row > .el-col:nth-child(3) .kpi-card { border-top-color: #e11d48; background: linear-gradient(160deg, #fff1f2 0%, #fff 70%); animation-delay: 120ms; }
+.kpi-row > .el-col:nth-child(4) .kpi-card { border-top-color: #7c3aed; background: linear-gradient(160deg, #f5f3ff 0%, #fff 70%); animation-delay: 180ms; }
+.kpi-row > .el-col:nth-child(5) .kpi-card { border-top-color: #f59e0b; background: linear-gradient(160deg, #fffbeb 0%, #fff 70%); animation-delay: 240ms; }
+.kpi-row > .el-col:nth-child(6) .kpi-card { border-top-color: #0891b2; background: linear-gradient(160deg, #ecfeff 0%, #fff 70%); animation-delay: 300ms; }
 
 .kpi-label {
   font-size: 14px;
@@ -236,6 +357,8 @@ onMounted(load)
   font-size: 32px;
   font-weight: 800;
   color: var(--samp-text-main);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
 }
 .kpi-value.green { color: #16a34a; }
 .kpi-value.red { color: #e11d48; }
@@ -250,11 +373,32 @@ onMounted(load)
 .cat-card {
   margin-bottom: 16px;
   border-top: 3px solid var(--samp-border);
+  animation: riseIn 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
 }
 
 .cat-card.clickable {
+  position: relative;
+  overflow: hidden;
   cursor: pointer;
   transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+}
+
+/* 悬停时扫过一道高光 */
+.cat-card.clickable::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(22, 163, 74, 0.12), transparent);
+  transform: skewX(-16deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+
+.cat-card.clickable:hover::after {
+  left: 130%;
 }
 
 .cat-card.clickable:hover {
@@ -290,6 +434,12 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: center;
+  animation: iconFloat 3.6s ease-in-out infinite;
+}
+
+@keyframes iconFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 
 .cat-name {
@@ -324,13 +474,29 @@ onMounted(load)
 }
 
 .dot {
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #16a34a;
+  color: #16a34a;
+  background: currentColor;
+}
+.dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.5;
+  animation: dotPulse 1.8s ease-out infinite;
 }
 .dot.warn {
-  background: #f59e0b;
+  color: #f59e0b;
+}
+
+@keyframes dotPulse {
+  0% { transform: scale(0.7); opacity: 0.7; }
+  100% { transform: scale(1.7); opacity: 0; }
 }
 
 .metric-value {
@@ -342,6 +508,36 @@ onMounted(load)
 }
 .metric-value .warn-text {
   color: #d97706;
+  animation: warnBlink 1.8s ease-in-out infinite;
+}
+
+@keyframes warnBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* 设备在线状态灯 */
+.status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #adb5bd;
+}
+
+.status-dot.online {
+  background: #16a34a;
+  animation: statusBreath 1.8s ease-in-out infinite;
+}
+
+@keyframes statusBreath {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+  50% { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0); }
 }
 .metric-value em {
   font-style: normal;
@@ -352,6 +548,30 @@ onMounted(load)
 
 .trend-card {
   margin-bottom: 16px;
+  animation: riseIn 0.5s 0.2s ease backwards;
+}
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-card,
+  .cat-card,
+  .cat-icon,
+  .device-card,
+  .trend-card,
+  .live-dot,
+  .dot::after,
+  .status-dot.online,
+  .metric-value .warn-text {
+    animation: none !important;
+  }
+  .kpi-card,
+  .cat-card.clickable {
+    transition: none !important;
+  }
 }
 
 .card-head {

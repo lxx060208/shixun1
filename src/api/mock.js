@@ -566,6 +566,8 @@ export const rolePermissions = {
     'menu-data', 'menu-data-overview', 'menu-data-water',
     'menu-sales', 'menu-sales-products', 'menu-sales-orders', 'menu-sales-shipments', 'menu-sales-statistics', 'menu-sales-customers',
     'menu-alarm', 'menu-alarm-history',
+    // 产销业务员同样可能被指派农事工单，需可进入农事台账查看本人工单与状态
+    'menu-farm', 'menu-farm-record',
     'data-scope', 'data-self',
   ],
   // 农技人员：农事 + 知识库 + 数据
@@ -736,12 +738,95 @@ export const deviceTypeDist = [
 ]
 
 export const deviceWorkOrders = [
-  { id: 'WO20261103001', device: '3 号大棚水泵', type: '故障维修', assignee: '李运维', progress: 60, status: '处理中' },
-  { id: 'WO20261103002', device: '2 号大棚风机', type: '故障维修', assignee: '周运维', progress: 85, status: '处理中' },
-  { id: 'WO20261102003', device: 'B-01 水质传感器', type: '校准维护', assignee: '李运维', progress: 100, status: '已完成' },
-  { id: 'WO20261102004', device: 'A 区滴灌电磁阀组', type: '定期保养', assignee: '周运维', progress: 100, status: '已完成' },
-  { id: 'WO20261101005', device: '园区气象站', type: '巡检', assignee: '李运维', progress: 100, status: '已完成' },
-  { id: 'WO20261105006', device: 'H-02 土壤传感器', type: '故障维修', assignee: '周运维', progress: 0, status: '待接单' },
+  {
+    id: 'WO20261103001', device: '3 号大棚水泵', deviceCode: 'D-NS-301', type: '故障维修',
+    park: '南山智慧农业示范园', location: '3 号大棚', priority: '高',
+    description: '水泵离线，疑似控制柜跳闸，需现场排查供电与接触器',
+    assignee: '李运维', progress: 60, status: '处理中',
+    createTime: '2026-11-03 08:20', deadline: '2026-11-04', startTime: '2026-11-03 09:10', finishTime: '',
+    consumed: [{ material: '数字万用表', quantity: 1, unit: '台', returned: 0, returnTime: '' }],
+    logs: [
+      { time: '2026-11-03 08:20', action: '创建工单', operator: '系统', remark: '设备离线告警自动生成' },
+      { time: '2026-11-03 08:45', action: '派发工单', operator: '陈场长', remark: '指派李运维处理，要求当日恢复供水' },
+      { time: '2026-11-03 09:10', action: '开始执行', operator: '李运维', remark: '已到达现场，拆检控制柜' },
+      { time: '2026-11-03 09:20', action: '领用工具', operator: '李运维', remark: '领用数字万用表 1 台，用于控制柜电路检测' },
+      { time: '2026-11-03 11:30', action: '进度更新', operator: '李运维', remark: '已更换接触器，待通电测试（60%）' },
+    ],
+  },
+  {
+    id: 'WO20261103002', device: '2 号大棚风机', deviceCode: 'D-NS-202', type: '故障维修',
+    park: '南山智慧农业示范园', location: '2 号大棚', priority: '中',
+    description: '电流异常报警，风机运行异响，需检查轴承与皮带',
+    assignee: '周运维', progress: 85, status: '处理中',
+    createTime: '2026-11-03 10:05', deadline: '2026-11-05', startTime: '2026-11-03 13:20', finishTime: '',
+    consumed: [],
+    logs: [
+      { time: '2026-11-03 10:05', action: '创建工单', operator: '陈场长', remark: '巡检发现风机异响' },
+      { time: '2026-11-03 11:00', action: '派发工单', operator: '陈场长', remark: '指派周运维处理' },
+      { time: '2026-11-03 13:20', action: '开始执行', operator: '周运维', remark: '已断电挂牌，开始拆检' },
+      { time: '2026-11-04 09:40', action: '进度更新', operator: '周运维', remark: '已更换轴承，待试运行（85%）' },
+    ],
+  },
+  {
+    id: 'WO20261102003', device: 'B-01 水质传感器', deviceCode: 'WQ-B01', type: '校准维护',
+    park: '清水有机蔬菜基地', location: 'B-01 水质监测点', priority: '中',
+    description: '溶解氧数据漂移，需现场校准并更换探头保护套',
+    assignee: '李运维', progress: 100, status: '已完成',
+    createTime: '2026-11-02 08:30', deadline: '2026-11-03', startTime: '2026-11-02 09:00', finishTime: '2026-11-02 11:20',
+    consumed: [{ material: '绝缘胶带', quantity: 1, unit: '卷' }],
+    logs: [
+      { time: '2026-11-02 08:30', action: '创建工单', operator: '系统', remark: '数据漂移超过阈值' },
+      { time: '2026-11-02 08:50', action: '派发工单', operator: '陈场长', remark: '指派李运维校准' },
+      { time: '2026-11-02 09:00', action: '开始执行', operator: '李运维', remark: '现场校准溶解氧探头' },
+      { time: '2026-11-02 11:20', action: '完成工单', operator: '李运维', remark: '校准完成，数据恢复正常' },
+    ],
+  },
+  {
+    id: 'WO20261102004', device: 'A 区滴灌电磁阀组', deviceCode: 'IR-A-01', type: '定期保养',
+    park: '南山智慧农业示范园', location: 'A 区滴灌首部', priority: '低',
+    description: '季度保养：阀体除垢、密封圈检查、线路紧固',
+    assignee: '周运维', progress: 100, status: '已完成',
+    createTime: '2026-11-02 14:00', deadline: '2026-11-04', startTime: '2026-11-02 15:00', finishTime: '2026-11-02 17:40',
+    consumed: [],
+    logs: [
+      { time: '2026-11-02 14:00', action: '创建工单', operator: '陈场长', remark: '季度保养计划' },
+      { time: '2026-11-02 14:30', action: '派发工单', operator: '陈场长', remark: '指派周运维执行' },
+      { time: '2026-11-02 15:00', action: '开始执行', operator: '周运维', remark: '逐阀除垢并检查密封' },
+      { time: '2026-11-02 17:40', action: '完成工单', operator: '周运维', remark: '保养完成，无渗漏' },
+    ],
+  },
+  {
+    id: 'WO20261101005', device: '园区气象站', deviceCode: 'WS-NS-01', type: '巡检',
+    park: '南山智慧农业示范园', location: '气象站', priority: '低',
+    description: '月度巡检：传感器清洁、立杆固定、供电检查',
+    assignee: '李运维', progress: 100, status: '已完成',
+    createTime: '2026-11-01 09:00', deadline: '2026-11-02', startTime: '2026-11-01 10:00', finishTime: '2026-11-01 11:30',
+    consumed: [],
+    logs: [
+      { time: '2026-11-01 09:00', action: '创建工单', operator: '系统', remark: '月度巡检计划' },
+      { time: '2026-11-01 09:30', action: '派发工单', operator: '陈场长', remark: '指派李运维巡检' },
+      { time: '2026-11-01 10:00', action: '开始执行', operator: '李运维', remark: '清洁雨量筒与风速仪' },
+      { time: '2026-11-01 11:30', action: '完成工单', operator: '李运维', remark: '巡检完成，数据正常' },
+    ],
+  },
+  {
+    id: 'WO20261105006', device: 'H-02 土壤传感器', deviceCode: 'SL-H02', type: '故障维修',
+    park: '花溪生态果园', location: 'H-02 苹果二号园', priority: '高',
+    description: '土壤湿度数据长时间无变化，疑似探头失效或线路断路',
+    assignee: '', progress: 0, status: '待派单',
+    createTime: '2026-11-05 08:40', deadline: '2026-11-06', startTime: '', finishTime: '',
+    consumed: [],
+    logs: [{ time: '2026-11-05 08:40', action: '创建工单', operator: '系统', remark: '数据长时间无变化自动生成' }],
+  },
+  {
+    id: 'WO20261106007', device: 'Q-04 灌溉控制器', deviceCode: 'IR-Q-04', type: '故障维修',
+    park: '清水有机蔬菜基地', location: 'Q-04 西兰花区', priority: '中',
+    description: '控制器无法远程下发灌溉指令，需检查通讯模块与供电',
+    assignee: '', progress: 0, status: '待派单',
+    createTime: '2026-11-06 09:15', deadline: '2026-11-07', startTime: '', finishTime: '',
+    consumed: [],
+    logs: [{ time: '2026-11-06 09:15', action: '创建工单', operator: '系统', remark: '远程控制失败自动生成' }],
+  },
 ]
 
 // ---- 告警与农事进度面板 ----
@@ -1636,6 +1721,7 @@ export const salesProducts = [
   {
     id: 'P001', name: '南山有机番茄', category: '蔬菜', variety: '番茄', grade: 'A级',
     spec: '5kg/箱', unit: 'kg', price: 12.8, stock: 860, park: '南山智慧农业示范园',
+    plotCode: 'A-02', crop: '番茄',
     status: '上架', image: '',
     description: '大棚有机种植，果形圆整、糖度稳定，适合商超与餐饮直供。',
     updateTime: '2026-11-04 16:20:00',
@@ -1643,6 +1729,7 @@ export const salesProducts = [
   {
     id: 'P002', name: '清水奶油生菜', category: '蔬菜', variety: '生菜', grade: 'A级',
     spec: '500g/袋', unit: 'kg', price: 6.5, stock: 1200, park: '清水有机蔬菜基地',
+    plotCode: 'Q-01', crop: '生菜',
     status: '上架', image: '',
     description: '水培种植，叶片鲜嫩无农残，冷链配送后仍保持脆度。',
     updateTime: '2026-11-03 10:45:00',
@@ -1650,6 +1737,7 @@ export const salesProducts = [
   {
     id: 'P003', name: '清水水果黄瓜', category: '蔬菜', variety: '黄瓜', grade: 'B级',
     spec: '5kg/箱', unit: 'kg', price: 8.8, stock: 640, park: '清水有机蔬菜基地',
+    plotCode: 'Q-03', crop: '黄瓜',
     status: '上架', image: '',
     description: '口感清甜、皮薄无刺，适合净菜加工与社区团购。',
     updateTime: '2026-11-02 14:30:00',
@@ -1657,6 +1745,7 @@ export const salesProducts = [
   {
     id: 'P004', name: '花溪红富士苹果', category: '水果', variety: '苹果', grade: 'A级',
     spec: '10kg/箱', unit: 'kg', price: 9.6, stock: 1500, park: '花溪生态果园',
+    plotCode: 'H-01', crop: '苹果',
     status: '上架', image: '',
     description: '山地果园自然成熟，果径 80mm 以上，耐储运。',
     updateTime: '2026-11-01 09:15:00',
@@ -1664,6 +1753,7 @@ export const salesProducts = [
   {
     id: 'P005', name: '花溪阳光玫瑰葡萄', category: '水果', variety: '葡萄', grade: 'A级',
     spec: '4kg/箱', unit: 'kg', price: 24, stock: 320, park: '花溪生态果园',
+    plotCode: 'H-03', crop: '葡萄',
     status: '上架', image: '',
     description: '无籽脆甜，糖度 18° 以上，需泡沫箱加冰袋冷链发货。',
     updateTime: '2026-11-05 08:40:00',
@@ -1671,6 +1761,7 @@ export const salesProducts = [
   {
     id: 'P006', name: '南山稻香米', category: '粮食', variety: '水稻', grade: 'A级',
     spec: '25kg/袋', unit: 'kg', price: 6.8, stock: 2600, park: '南山智慧农业示范园',
+    plotCode: 'A-01', crop: '水稻',
     status: '上架', image: '',
     description: '当季新米，米粒饱满，出饭率高，支持批量食堂配送。',
     updateTime: '2026-10-30 15:00:00',
@@ -1678,6 +1769,7 @@ export const salesProducts = [
   {
     id: 'P007', name: '清水小香葱', category: '蔬菜', variety: '香葱', grade: 'B级',
     spec: '2kg/捆', unit: 'kg', price: 7.2, stock: 180, park: '清水有机蔬菜基地',
+    plotCode: 'Q-05', crop: '香葱',
     status: '上架', image: '',
     description: '当日采割、当日发货，适合餐饮配料与农贸市场批发。',
     updateTime: '2026-10-29 11:20:00',
@@ -1685,6 +1777,7 @@ export const salesProducts = [
   {
     id: 'P008', name: '花溪秋月梨', category: '水果', variety: '梨', grade: 'B级',
     spec: '8kg/箱', unit: 'kg', price: 8.4, stock: 760, park: '花溪生态果园',
+    plotCode: 'H-04', crop: '梨',
     status: '上架', image: '',
     description: '汁多脆甜，单果重 400g 左右，礼盒与散装均可供应。',
     updateTime: '2026-10-28 16:10:00',
@@ -1692,6 +1785,7 @@ export const salesProducts = [
   {
     id: 'P009', name: '南山大棚草莓', category: '水果', variety: '草莓', grade: 'A级',
     spec: '2kg/盒', unit: 'kg', price: 36, stock: 90, park: '南山智慧农业示范园',
+    plotCode: 'B-02', crop: '草莓',
     status: '上架', image: '',
     description: '红颜品种，现摘现发，仅支持同城次日达配送。',
     updateTime: '2026-11-05 07:50:00',
@@ -1699,6 +1793,7 @@ export const salesProducts = [
   {
     id: 'P010', name: '清水西兰花', category: '蔬菜', variety: '西兰花', grade: 'A级',
     spec: '5kg/箱', unit: 'kg', price: 7.6, stock: 420, park: '清水有机蔬菜基地',
+    plotCode: 'Q-04', crop: '西兰花',
     status: '上架', image: '',
     description: '花球紧实、色泽翠绿，适合团餐与商超净菜渠道。',
     updateTime: '2026-10-27 10:05:00',
@@ -1706,6 +1801,7 @@ export const salesProducts = [
   {
     id: 'P011', name: '花溪生态土鸡蛋', category: '禽蛋', variety: '鸡蛋', grade: 'A级',
     spec: '30枚/盒', unit: '盒', price: 48, stock: 260, park: '花溪生态果园',
+    plotCode: 'H-05', crop: '土鸡养殖',
     status: '上架', image: '',
     description: '散养土鸡蛋，蛋黄色泽深，按盒销售，支持周配。',
     updateTime: '2026-11-03 17:35:00',
@@ -1713,6 +1809,7 @@ export const salesProducts = [
   {
     id: 'P012', name: '南山有机紫薯', category: '粮食', variety: '甘薯', grade: 'B级',
     spec: '10kg/箱', unit: 'kg', price: 5.4, stock: 0, park: '南山智慧农业示范园',
+    plotCode: 'A-01', crop: '甘薯',
     status: '下架', image: '',
     description: '当季货源已售罄，待新薯上市后重新上架。',
     updateTime: '2026-11-02 09:00:00',
@@ -2047,6 +2144,47 @@ export const farmMaterials = [
   { id: 11, name: '生菜种子（奶油生菜）', category: '种子', spec: '250g/袋', unit: '袋', stock: 14, threshold: 5, location: '清水农资库', updateTime: '2026-10-07 16:50:00' },
   { id: 12, name: '育苗基质', category: '其他', spec: '50L/袋', unit: '袋', stock: 46, threshold: 20, location: '清水农资库', updateTime: '2026-10-26 14:45:00' },
   { id: 13, name: '灌溉滴灌带', category: '其他', spec: '500m/卷', unit: '卷', stock: 12, threshold: 15, location: '南山农资库', updateTime: '2026-11-05 10:20:00' },
+  // ---- 植物生长全过程物资：种苗、肥料、农药、植保辅材 ----
+  { id: 14, name: '苹果苗（红富士）', category: '种苗', spec: '2 年生嫁接苗', unit: '株', stock: 260, threshold: 60, location: '花溪农资库', updateTime: '2026-11-09 09:00:00' },
+  { id: 15, name: '葡萄苗（阳光玫瑰）', category: '种苗', spec: '1 年生嫁接苗', unit: '株', stock: 180, threshold: 40, location: '花溪农资库', updateTime: '2026-11-08 10:20:00' },
+  { id: 16, name: '草莓种苗（章姬）', category: '种苗', spec: '穴盘苗', unit: '株', stock: 3200, threshold: 500, location: '南山农资库', updateTime: '2026-11-07 14:30:00' },
+  { id: 17, name: '西兰花种子（绿冠）', category: '种子', spec: '50g/罐', unit: '罐', stock: 18, threshold: 5, location: '清水农资库', updateTime: '2026-11-06 09:40:00' },
+  { id: 18, name: '有机肥（腐熟羊粪）', category: '肥料', spec: '40kg/袋', unit: '袋', stock: 86, threshold: 20, location: '南山农资库', updateTime: '2026-11-06 15:10:00' },
+  { id: 19, name: '硫酸钾复合肥', category: '肥料', spec: '25kg/袋', unit: '袋', stock: 52, threshold: 15, location: '花溪农资库', updateTime: '2026-11-05 11:30:00' },
+  { id: 20, name: '过磷酸钙', category: '肥料', spec: '25kg/袋', unit: '袋', stock: 4, threshold: 10, location: '清水农资库', updateTime: '2026-10-30 16:00:00' },
+  { id: 21, name: '氨基酸叶面肥', category: '肥料', spec: '500ml/瓶', unit: '瓶', stock: 36, threshold: 10, location: '南山农资库', updateTime: '2026-11-04 09:20:00' },
+  { id: 22, name: '70% 甲基硫菌灵', category: '农药', spec: '500g/袋', unit: '袋', stock: 28, threshold: 10, location: '花溪农资库', updateTime: '2026-11-03 10:10:00' },
+  { id: 23, name: '41% 草甘膦水剂', category: '农药', spec: '1L/瓶', unit: '瓶', stock: 9, threshold: 12, location: '南山农资库', updateTime: '2026-11-02 15:40:00' },
+  { id: 24, name: '黄色黏虫板', category: '其他', spec: '25×20cm', unit: '张', stock: 600, threshold: 100, location: '清水农资库', updateTime: '2026-11-01 09:00:00' },
+  { id: 25, name: '黑色地膜', category: '其他', spec: '1.2m×500m', unit: '卷', stock: 22, threshold: 5, location: '南山农资库', updateTime: '2026-10-29 14:20:00' },
+  { id: 26, name: '遮阳网', category: '其他', spec: '6 针×50m', unit: '卷', stock: 14, threshold: 4, location: '清水农资库', updateTime: '2026-10-28 10:30:00' },
+  // ---- 农事作业工具：与农事工单执行登记一一对应 ----
+  { id: 27, name: '旋耕机', category: '工具', spec: '1GKN-180', unit: '台', stock: 4, threshold: 1, location: '南山农资库', updateTime: '2026-11-08 08:30:00' },
+  { id: 28, name: '微耕机', category: '工具', spec: '1WG-4', unit: '台', stock: 6, threshold: 2, location: '清水农资库', updateTime: '2026-11-07 09:15:00' },
+  { id: 29, name: '联合收割机', category: '工具', spec: '4LZ-5', unit: '台', stock: 2, threshold: 1, location: '南山农资库', updateTime: '2026-11-06 16:20:00' },
+  { id: 30, name: '背负式喷雾器', category: '工具', spec: '16L', unit: '台', stock: 12, threshold: 3, location: '清水农资库', updateTime: '2026-11-05 13:10:00' },
+  { id: 31, name: '手推式割草机', category: '工具', spec: '196cc', unit: '台', stock: 5, threshold: 1, location: '花溪农资库', updateTime: '2026-11-04 15:00:00' },
+  { id: 32, name: '采收筐', category: '工具', spec: '50L', unit: '个', stock: 160, threshold: 30, location: '花溪农资库', updateTime: '2026-11-03 10:40:00' },
+  { id: 33, name: '运输推车', category: '工具', spec: '载重 300kg', unit: '辆', stock: 8, threshold: 2, location: '清水农资库', updateTime: '2026-11-02 09:50:00' },
+  { id: 34, name: '锄头', category: '工具', spec: '锰钢', unit: '把', stock: 26, threshold: 6, location: '南山农资库', updateTime: '2026-11-01 14:10:00' },
+  { id: 35, name: '铁锹', category: '工具', spec: '尖头', unit: '把', stock: 20, threshold: 5, location: '清水农资库', updateTime: '2026-10-30 16:40:00' },
+  { id: 36, name: '修枝剪', category: '工具', spec: 'SK5', unit: '把', stock: 3, threshold: 5, location: '花溪农资库', updateTime: '2026-10-29 09:20:00' },
+  { id: 37, name: '绑枝绳', category: '工具', spec: '2kg', unit: '卷', stock: 30, threshold: 8, location: '花溪农资库', updateTime: '2026-10-28 11:00:00' },
+  { id: 38, name: '水肥一体机', category: '工具', spec: 'SF-300', unit: '台', stock: 3, threshold: 1, location: '南山农资库', updateTime: '2026-10-27 15:30:00' },
+  { id: 39, name: '土壤温湿度计', category: '工具', spec: '便携式', unit: '台', stock: 5, threshold: 2, location: '清水农资库', updateTime: '2026-10-25 10:00:00' },
+  // ---- 设备维修工具：与运维工单执行登记一一对应 ----
+  { id: 40, name: '数字万用表', category: '工具', spec: 'DT9205A', unit: '台', stock: 5, threshold: 2, location: '南山农资库', updateTime: '2026-11-10 09:00:00' },
+  { id: 41, name: '活动扳手套装', category: '工具', spec: '8-24mm', unit: '套', stock: 10, threshold: 3, location: '南山农资库', updateTime: '2026-11-09 14:20:00' },
+  { id: 42, name: '十字螺丝刀套装', category: '工具', spec: '6 件套', unit: '套', stock: 15, threshold: 4, location: '清水农资库', updateTime: '2026-11-09 10:30:00' },
+  { id: 43, name: '剥线钳', category: '工具', spec: '0.5-6mm²', unit: '把', stock: 8, threshold: 2, location: '清水农资库', updateTime: '2026-11-08 16:10:00' },
+  { id: 44, name: '网线钳', category: '工具', spec: 'RJ45/RJ11', unit: '把', stock: 5, threshold: 2, location: '南山农资库', updateTime: '2026-11-08 11:00:00' },
+  { id: 45, name: '电烙铁', category: '工具', spec: '60W 恒温', unit: '台', stock: 4, threshold: 1, location: '南山农资库', updateTime: '2026-11-07 15:40:00' },
+  { id: 46, name: '绝缘胶带', category: '工具', spec: '18mm×10m', unit: '卷', stock: 60, threshold: 15, location: '南山农资库', updateTime: '2026-11-07 09:20:00' },
+  { id: 47, name: '尼龙扎带', category: '工具', spec: '4×200mm', unit: '包', stock: 40, threshold: 10, location: '清水农资库', updateTime: '2026-11-06 14:00:00' },
+  { id: 48, name: '密封胶', category: '工具', spec: '300ml', unit: '支', stock: 25, threshold: 6, location: '花溪农资库', updateTime: '2026-11-06 10:10:00' },
+  { id: 49, name: '人字梯', category: '工具', spec: '2.5m 铝合金', unit: '架', stock: 3, threshold: 1, location: '南山农资库', updateTime: '2026-11-05 16:30:00' },
+  { id: 50, name: '设备清洁刷', category: '工具', spec: '防静电', unit: '把', stock: 18, threshold: 5, location: '清水农资库', updateTime: '2026-11-05 11:50:00' },
+  { id: 51, name: '内六角扳手套装', category: '工具', spec: '1.5-10mm', unit: '套', stock: 7, threshold: 2, location: '花溪农资库', updateTime: '2026-11-04 15:20:00' },
 ]
 
 // ---- 种植计划：14 条 ----

@@ -139,22 +139,31 @@ onMounted(load)
 .page-header { display: flex; align-items: center; justify-content: space-between; }
 
 .metric-card {
+  position: relative;
+  overflow: hidden;
   display: flex; flex-direction: column; gap: 8px; padding: 18px 16px; margin-bottom: 16px;
   background: #fff; border: 1px solid var(--samp-border); border-radius: 14px;
   border-top: 4px solid #16a34a; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  animation: riseIn 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
 }
-.metric-card:nth-child(1) { border-top-color:#b45309; background:linear-gradient(160deg,#fffbeb,#fff 70%); }
-.metric-card:nth-child(2) { border-top-color:#ea580c; background:linear-gradient(160deg,#fff7ed,#fff 70%); }
-.metric-card:nth-child(3) { border-top-color:#16a34a; background:linear-gradient(160deg,#f0fdf4,#fff 70%); }
-.metric-card:nth-child(4) { border-top-color:#0284c7; background:linear-gradient(160deg,#f0f9ff,#fff 70%); }
-.metric-card:nth-child(5) { border-top-color:#059669; background:linear-gradient(160deg,#ecfdf5,#fff 70%); }
-.metric-card:nth-child(6) { border-top-color:#f59e0b; background:linear-gradient(160deg,#fffbeb,#fff 70%); }
-.metric-card:nth-child(7) { border-top-color:#7c3aed; background:linear-gradient(160deg,#f5f3ff,#fff 70%); }
+.metric-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.12);
+}
+/* 指标卡片依次错落入场 */
+.el-row > .el-col:nth-child(1) .metric-card { border-top-color:#b45309; background:linear-gradient(160deg,#fffbeb,#fff 70%); animation-delay: 0ms; }
+.el-row > .el-col:nth-child(2) .metric-card { border-top-color:#ea580c; background:linear-gradient(160deg,#fff7ed,#fff 70%); animation-delay: 50ms; }
+.el-row > .el-col:nth-child(3) .metric-card { border-top-color:#16a34a; background:linear-gradient(160deg,#f0fdf4,#fff 70%); animation-delay: 100ms; }
+.el-row > .el-col:nth-child(4) .metric-card { border-top-color:#0284c7; background:linear-gradient(160deg,#f0f9ff,#fff 70%); animation-delay: 150ms; }
+.el-row > .el-col:nth-child(5) .metric-card { border-top-color:#059669; background:linear-gradient(160deg,#ecfdf5,#fff 70%); animation-delay: 200ms; }
+.el-row > .el-col:nth-child(6) .metric-card { border-top-color:#f59e0b; background:linear-gradient(160deg,#fffbeb,#fff 70%); animation-delay: 250ms; }
+.el-row > .el-col:nth-child(7) .metric-card { border-top-color:#7c3aed; background:linear-gradient(160deg,#f5f3ff,#fff 70%); animation-delay: 300ms; }
 .m-label { font-size: 14px; font-weight: 600; color: var(--samp-text-secondary); }
 .m-value { font-size: 28px; font-weight: 800; color: var(--samp-text-main); }
 .m-value em { font-style: normal; font-size: 13px; font-weight: 500; color: var(--samp-text-secondary); margin-left: 3px; }
 
-.chart-card { margin-bottom: 16px; }
+.chart-card { margin-bottom: 16px; animation: riseIn 0.5s 0.12s ease backwards; }
 .chart-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .chart-tools { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -162,10 +171,27 @@ onMounted(load)
 .lg i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
 .npk-list { display: flex; flex-direction: column; gap: 18px; }
-.npk-item { display: flex; align-items: center; gap: 12px; }
+.npk-item { display: flex; align-items: center; gap: 12px; animation: riseIn 0.4s ease backwards; }
+.npk-item:nth-child(2) { animation-delay: 70ms; }
+.npk-item:nth-child(3) { animation-delay: 140ms; }
 .npk-label { width: 48px; font-weight: 600; flex-shrink: 0; }
 .npk-item :deep(.el-progress) { flex: 1; }
+.npk-item :deep(.el-progress-bar__inner) { transition: width 0.9s cubic-bezier(0.22, 0.9, 0.3, 1); }
 .npk-val { width: 40px; text-align: right; color: var(--samp-text-main); font-weight: 600; flex-shrink: 0; }
 
 .pager { display: flex; justify-content: flex-end; margin-top: 14px; }
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .metric-card,
+  .chart-card,
+  .npk-item {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 </style>

@@ -157,9 +157,12 @@ onMounted(() => {
         <el-table-column prop="lastOnline" label="最后在线" min-width="150" />
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'online' ? 'success' : 'danger'" size="small" effect="light">
-              {{ row.status === 'online' ? '在线' : '掉线' }}
-            </el-tag>
+            <span class="status-cell">
+              <i class="status-dot" :class="row.status === 'online' ? 'is-on' : 'is-off'" />
+              <el-tag :type="row.status === 'online' ? 'success' : 'danger'" size="small" effect="light">
+                {{ row.status === 'online' ? '在线' : '掉线' }}
+              </el-tag>
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
@@ -207,9 +210,12 @@ onMounted(() => {
         </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'normal' ? 'success' : 'warning'" size="small" effect="light">
-              {{ row.status === 'normal' ? '正常' : '偏高' }}
-            </el-tag>
+            <span class="status-cell">
+              <i class="status-dot" :class="row.status === 'normal' ? 'is-on' : 'is-warn'" />
+              <el-tag :type="row.status === 'normal' ? 'success' : 'warning'" size="small" effect="light">
+                {{ row.status === 'normal' ? '正常' : '偏高' }}
+              </el-tag>
+            </span>
           </template>
         </el-table-column>
       </el-table>
@@ -255,7 +261,8 @@ onMounted(() => {
 <style scoped>
 .page-header { display: flex; align-items: center; justify-content: space-between; }
 
-.block { margin-bottom: 16px; }
+.block { margin-bottom: 16px; animation: riseIn 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards; }
+.block + .block { animation-delay: 90ms; }
 
 .card-head { display: flex; align-items: center; justify-content: space-between; }
 
@@ -264,4 +271,44 @@ onMounted(() => {
 .pager { display: flex; justify-content: flex-end; margin-top: 14px; }
 
 .freq-tip { margin-left: 10px; font-size: 12px; color: var(--samp-text-secondary); }
+
+/* 状态圆点：在线呼吸、掉线/偏高闪烁 */
+.status-cell { display: inline-flex; align-items: center; gap: 6px; }
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #94a3b8;
+}
+.status-dot.is-on {
+  background: #16a34a;
+  animation: dotPulse 1.8s ease-in-out infinite;
+}
+.status-dot.is-off { background: #e11d48; animation: dotBlink 1.2s ease-in-out infinite; }
+.status-dot.is-warn { background: #f59e0b; animation: dotBlink 1.2s ease-in-out infinite; }
+
+@keyframes dotPulse {
+  0% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
+  70% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block,
+  .status-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 </style>

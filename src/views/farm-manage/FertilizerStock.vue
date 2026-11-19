@@ -10,9 +10,9 @@ import {
   saveFarmPurchaseApi,
   deleteFarmPurchaseApi,
 } from '@/api'
-import { farmMaterials, farmers } from '@/api/mock'
+import { farmMaterials, farmers, farmPurchases } from '@/api/mock'
 
-const categories = ['肥料', '农药', '种子', '其他']
+const categories = ['肥料', '农药', '种子', '种苗', '工具', '其他']
 const activeTab = ref('stock')
 
 /* ---- 库存 ---- */
@@ -22,7 +22,12 @@ const stockTotal = ref(0)
 const lowStockCount = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
-const stockFilters = reactive({ keyword: '', category: '' })
+const stockFilters = reactive({ keyword: '', category: '', status: '', location: '' })
+const locationOptions = ref([])
+const statusOptions = [
+  { label: '正常', value: 'normal' },
+  { label: '低库存', value: 'low' },
+]
 
 const materialDialog = ref(false)
 const adjustDialog = ref(false)
@@ -47,6 +52,15 @@ const purchasePage = ref(1)
 const purchasePageSize = ref(10)
 const purchaseKeyword = ref('')
 
+// 供应商下拉选项：内置常用供应商 + 历史采购记录中已录入的供应商，也允许直接输入新供应商
+const defaultSuppliers = ['重庆沃土农资有限公司', '渝北植保物资站', '川渝种业有限公司', '重庆绿丰农业发展有限公司', '西南农资配送中心']
+const supplierOptions = ref([...defaultSuppliers])
+
+function refreshSuppliers() {
+  const names = farmPurchases.map((p) => p.supplier).filter(Boolean)
+  supplierOptions.value = [...new Set([...defaultSuppliers, ...names])]
+}
+
 const purchaseDialog = ref(false)
 const purchaseSaving = ref(false)
 const purchaseFormRef = ref()
@@ -60,6 +74,16 @@ const purchaseRules = {
 
 const purchaseAmount = computed(() => Number((purchaseForm.quantity * purchaseForm.unitPrice).toFixed(2)) || 0)
 
+// 入库预览：所选农资当前库存 → 采购入库后的库存
+const purchaseMaterial = computed(() => farmMaterials.find((m) => m.name === purchaseForm.material))
+const purchaseStockPreview = computed(() => {
+  const m = purchaseMaterial.value
+  if (!m) return '选择农资后自动展示入库后的库存变化'
+  const cur = Number(m.stock) || 0
+  const qty = Number(purchaseForm.quantity) || 0
+  return `当前库存 ${cur}${m.unit} → 入库后 ${cur + qty}${m.unit}`
+})
+
 async function loadStock() {
   stockLoading.value = true
   try {
@@ -67,6 +91,7 @@ async function loadStock() {
     stockList.value = res.list
     stockTotal.value = res.total
     lowStockCount.value = res.lowStockCount
+    locationOptions.value = res.locations || []
     const maxPage = Math.max(1, Math.ceil(res.total / pageSize.value))
     if (page.value > maxPage) {
       page.value = maxPage
@@ -87,6 +112,18 @@ function searchStock() {
 function resetStockFilters() {
   stockFilters.keyword = ''
   stockFilters.category = ''
+  stockFilters.status = ''
+  stockFilters.location = ''
+  page.value = 1
+  loadStock()
+}
+
+// 低库存预警一键筛选：快速定位需补货物资
+function filterLowStock() {
+  stockFilters.keyword = ''
+  stockFilters.category = ''
+  stockFilters.location = ''
+  stockFilters.status = 'low'
   page.value = 1
   loadStock()
 }
@@ -182,6 +219,7 @@ async function loadPurchases() {
     purchaseList.value = res.list
     purchaseTotal.value = res.total
     totalAmount.value = res.totalAmount
+    refreshSuppliers()
     const maxPage = Math.max(1, Math.ceil(res.total / purchasePageSize.value))
     if (purchasePage.value > maxPage) {
       purchasePage.value = maxPage
@@ -217,6 +255,7 @@ function genPurchaseNo() {
 }
 
 function onMaterialChange(name) {
+  // 单位跟随库存档案，避免单位不一致导致入库数量失真
   const m = farmMaterials.find((i) => i.name === name)
   if (m) purchaseForm.unit = m.unit
 }
@@ -232,10 +271,16 @@ async function submitPurchase() {
     if (!valid) return
     purchaseSaving.value = true
     try {
-      await saveFarmPurchaseApi({ ...purchaseForm, amount: purchaseAmount.value })
-      ElMessage.success('采购记录已登记')
+      const res = await saveFarmPurchaseApi({ ...purchaseForm, amount: purchaseAmount.value })
+      // 采购登记后库存已同步更新，提示变更结果并刷新库存列表
+      ElMessage.success(
+        res.stockAfter != null
+          ? `采购记录已登记，「${purchaseForm.material}」库存已增加 ${purchaseForm.quantity} ${purchaseForm.unit}，当前库存 ${res.stockAfter}`
+          : '采购记录已登记，但未找到对应农资，库存未更新'
+      )
       purchaseDialog.value = false
       loadPurchases()
+      loadStock()
     } catch (e) {
       ElMessage.error(e.message || '保存失败')
     } finally {
@@ -255,9 +300,14 @@ async function removePurchase(row) {
     return
   }
   try {
-    await deleteFarmPurchaseApi(row.id)
-    ElMessage.success('采购记录已删除')
+    const res = await deleteFarmPurchaseApi(row.id)
+    ElMessage.success(
+      res.stockAfter != null
+        ? `采购记录已删除，「${row.material}」库存已扣回 ${row.quantity} ${row.unit}，当前库存 ${res.stockAfter}`
+        : '采购记录已删除'
+    )
     loadPurchases()
+    loadStock()
   } catch (e) {
     ElMessage.error(e.message || '删除失败')
   }
@@ -284,24 +334,39 @@ onMounted(() => {
             <el-alert :type="lowStockCount > 0 ? 'warning' : 'success'" :closable="false" show-icon>
               <template #title>
                 当前有 <b>{{ lowStockCount }}</b> 项农资处于低库存状态（库存 ≤ 预警阈值），请及时补货。
+                <el-button link type="warning" size="small" class="alert-link" @click="filterLowStock">仅看低库存</el-button>
               </template>
             </el-alert>
           </div>
           <el-form :model="stockFilters" label-width="70px" class="filter-form">
             <el-row :gutter="12">
-              <el-col :xs="24" :sm="12" :md="10">
+              <el-col :xs="24" :sm="12" :md="8">
                 <el-form-item label="关键字">
                   <el-input v-model="stockFilters.keyword" placeholder="农资名称 / 规格 / 库位" clearable @keyup.enter="searchStock" />
                 </el-form-item>
               </el-col>
               <el-col :xs="12" :sm="6" :md="4">
                 <el-form-item label="分类">
-                  <el-select v-model="stockFilters.category" placeholder="全部分类" clearable style="width: 100%">
+                  <el-select v-model="stockFilters.category" placeholder="全部分类" clearable style="width: 100%" @change="searchStock">
                     <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="24" :md="6">
+              <el-col :xs="12" :sm="6" :md="4">
+                <el-form-item label="状态">
+                  <el-select v-model="stockFilters.status" placeholder="全部状态" clearable style="width: 100%" @change="searchStock">
+                    <el-option v-for="s in statusOptions" :key="s.value" :label="s.label" :value="s.value" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="12" :sm="6" :md="4">
+                <el-form-item label="库位">
+                  <el-select v-model="stockFilters.location" placeholder="全部库位" clearable style="width: 100%" @change="searchStock">
+                    <el-option v-for="l in locationOptions" :key="l" :label="l" :value="l" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="12" :sm="6" :md="4">
                 <el-form-item label-width="0" class="filter-buttons">
                   <el-button type="primary" @click="searchStock"><el-icon><Search /></el-icon>查询</el-button>
                   <el-button @click="resetStockFilters">重置</el-button>
@@ -328,6 +393,18 @@ onMounted(() => {
             <el-table-column label="库存" width="90" align="center">
               <template #default="{ row }">
                 <span :class="{ 'low-stock': row.stock <= row.threshold }">{{ row.stock }}</span> {{ row.unit }}
+              </template>
+            </el-table-column>
+            <el-table-column label="借出未还" width="100" align="center">
+              <template #default="{ row }">
+                <el-tooltip
+                  v-if="row.borrowed > 0"
+                  content="维修工单领用后尚未归还，归还后自动回补库存"
+                  placement="top"
+                >
+                  <el-tag size="small" type="warning" effect="plain">{{ row.borrowed }} {{ row.unit }}</el-tag>
+                </el-tooltip>
+                <span v-else class="text-muted">—</span>
               </template>
             </el-table-column>
             <el-table-column prop="threshold" label="预警阈值" width="90" align="center" />
@@ -490,7 +567,7 @@ onMounted(() => {
     </el-dialog>
 
     <!-- 登记采购 -->
-    <el-dialog v-model="purchaseDialog" title="登记采购记录" width="560px" destroy-on-close>
+    <el-dialog v-model="purchaseDialog" title="登记采购记录" width="720px" destroy-on-close>
       <el-form ref="purchaseFormRef" :model="purchaseForm" :rules="purchaseRules" label-width="90px">
         <el-form-item label="采购单号">
           <el-input v-model="purchaseForm.purchaseNo" placeholder="自动生成，可手改" />
@@ -505,22 +582,32 @@ onMounted(() => {
           </el-col>
           <el-col :span="12">
             <el-form-item label="供应商" prop="supplier">
-              <el-input v-model="purchaseForm.supplier" placeholder="请输入供应商" />
+              <el-select
+                v-model="purchaseForm.supplier"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="选择或直接输入供应商"
+                style="width: 100%"
+              >
+                <el-option v-for="s in supplierOptions" :key="s" :label="s" :value="s" />
+              </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="数量" prop="quantity">
               <el-input-number v-model="purchaseForm.quantity" :min="1" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="8">
             <el-form-item label="单位">
-              <el-input v-model="purchaseForm.unit" />
+              <el-input v-model="purchaseForm.unit" disabled placeholder="选择农资后带出" />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="8">
             <el-form-item label="单价(¥)">
-              <el-input-number v-model="purchaseForm.unitPrice" :min="0" :precision="2" style="width: 100%" />
+              <el-input-number v-model="purchaseForm.unitPrice" :min="0" :precision="2" :controls="false" placeholder="请输入单价" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -536,6 +623,11 @@ onMounted(() => {
             </el-form-item>
           </el-col>
         </el-row>
+        <div class="purchase-preview">
+          <el-icon><Box /></el-icon>
+          <span>{{ purchaseStockPreview }}</span>
+        </div>
+        <div class="purchase-tip">登记采购后，系统将按采购数量自动增加对应农资库存；删除采购记录会同步扣回库存。</div>
       </el-form>
       <template #footer>
         <el-button @click="purchaseDialog = false">取消</el-button>
@@ -561,6 +653,10 @@ onMounted(() => {
 
 .stock-alert {
   margin-bottom: 16px;
+}
+
+.alert-link {
+  margin-left: 8px;
 }
 
 .filter-buttons {
@@ -592,6 +688,10 @@ onMounted(() => {
   font-weight: 700;
 }
 
+.text-muted {
+  color: #adb5bd;
+}
+
 .purchase-header-right {
   display: flex;
   gap: 10px;
@@ -607,6 +707,25 @@ onMounted(() => {
   font-size: 18px;
   font-weight: 700;
   color: #2f9e44;
+}
+
+.purchase-tip {
+  margin: 2px 0 0 90px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #868e96;
+}
+
+.purchase-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 0 90px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #ebfbee;
+  color: #2f9e44;
+  font-size: 13px;
 }
 
 .pagination {

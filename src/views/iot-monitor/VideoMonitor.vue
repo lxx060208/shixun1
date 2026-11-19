@@ -46,7 +46,13 @@ onMounted(load)
     </div>
 
     <div class="video-grid" :style="{ gridTemplateColumns: gridCols }">
-      <div v-for="ch in channels" :key="ch.id" class="video-card">
+      <div
+        v-for="(ch, i) in channels"
+        :key="ch.id"
+        class="video-card"
+        :class="{ 'is-offline': ch.status === 'offline' }"
+        :style="{ animationDelay: `${i * 80}ms` }"
+      >
         <div class="screen" :class="{ offline: ch.status === 'offline' }">
           <el-icon :size="44" class="screen-icon"><VideoCamera /></el-icon>
           <span v-if="ch.status === 'online'" class="live-badge">LIVE</span>
@@ -90,6 +96,12 @@ onMounted(load)
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  animation: riseIn 0.5s cubic-bezier(0.22, 0.9, 0.3, 1) backwards;
+  transition: transform 0.24s ease, box-shadow 0.24s ease;
+}
+.video-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.16);
 }
 
 .screen {
@@ -104,12 +116,42 @@ onMounted(load)
 
 .screen.offline { background: linear-gradient(135deg, #374151, #1f2937); }
 
-.screen-icon { color: rgba(255, 255, 255, 0.35); }
+/* 在线画面：镜头图标呼吸发光 */
+.screen:not(.offline) .screen-icon {
+  animation: iconGlow 2.6s ease-in-out infinite;
+}
+
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 70% 20%, rgba(56, 189, 248, 0.16), transparent 55%);
+  animation: screenBreath 4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.screen.offline::after { display: none; }
+
+@keyframes iconGlow {
+  0%, 100% { opacity: 0.35; filter: drop-shadow(0 0 0 rgba(34, 211, 238, 0)); }
+  50% { opacity: 0.65; filter: drop-shadow(0 0 10px rgba(34, 211, 238, 0.45)); }
+}
+
+@keyframes screenBreath {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.screen-icon { position: relative; z-index: 1; color: rgba(255, 255, 255, 0.35); }
 
 .live-badge {
   position: absolute;
   top: 12px;
   left: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 2px 8px;
   font-size: 11px;
   font-weight: 700;
@@ -117,31 +159,82 @@ onMounted(load)
   color: #fff;
   background: #e11d48;
   border-radius: 4px;
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+.live-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  animation: dotBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(225, 29, 72, 0); }
+}
+
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
 }
 
 .offline-badge {
   position: absolute;
   top: 12px;
   left: 12px;
+  z-index: 2;
   padding: 2px 8px;
   font-size: 11px;
   color: #fff;
   background: #6b7280;
   border-radius: 4px;
+  animation: offlineFade 2.4s ease-in-out infinite;
 }
+
+@keyframes offlineFade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.video-card.is-offline .screen-icon { color: rgba(255, 255, 255, 0.22); }
 
 .scan {
   position: absolute;
   left: 0;
   right: 0;
+  z-index: 2;
   height: 2px;
   background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.7), transparent);
   animation: scan 3s linear infinite;
 }
 
+.screen.offline .scan { display: none; }
+
 @keyframes scan {
-  0% { top: 6%; }
-  100% { top: 92%; }
+  0% { top: 6%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { top: 92%; opacity: 0; }
+}
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-card,
+  .screen::after,
+  .screen-icon,
+  .live-badge,
+  .live-badge::before,
+  .offline-badge,
+  .scan {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 .video-foot {

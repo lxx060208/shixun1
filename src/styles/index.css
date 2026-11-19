@@ -130,3 +130,28 @@ a {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* 农事工单状态：不同状态使用不同颜色标签（待派单灰 / 已派单蓝 / 进行中橙 / 已完成绿） */
+.status-tag--pending {
+  --el-tag-bg-color: #f1f3f5;
+  --el-tag-border-color: #dee2e6;
+  --el-tag-text-color: #868e96;
+}
+
+.status-tag--assigned {
+  --el-tag-bg-color: #e7f5ff;
+  --el-tag-border-color: #a5d8ff;
+  --el-tag-text-color: #1c7ed6;
+}
+
+.status-tag--doing {
+  --el-tag-bg-color: #fff4e6;
+  --el-tag-border-color: #ffc078;
+  --el-tag-text-color: #e8590c;
+}
+
+.status-tag--done {
+  --el-tag-bg-color: #ebfbee;
+  --el-tag-border-color: #b2f2bb;
+  --el-tag-text-color: #2f9e44;
+}
