@@ -97,6 +97,8 @@ function refreshCaptcha() {
     code += CAPTCHA_CHARS.charAt(Math.floor(Math.random() * CAPTCHA_CHARS.length))
   }
   captchaAnswer.value = code
+  // 测试辅助：把验证码答案暴露到 window，跑完回归测试请删除此行
+  window.__captcha = code
   captchaExpireAt.value = Date.now() + CAPTCHA_TTL * 1000
   captchaRemain.value = CAPTCHA_TTL
   form.captcha = ''
